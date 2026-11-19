@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+<head>
+  <!-- الخدمة اليومية v1.0 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1c3a97" />
+  <meta name="description" content="الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;800&family=El+Messiri:wght@500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+
+
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+
+<!-- =========================================================
+     شاشة الدخول
+     ========================================================= -->
+<div id="login-screen" class="login-page">
+
+  <!-- زر الوضع الليلي العائم -->
+  <button class="theme-toggle-btn" id="themeToggleLogin" aria-label="تبديل الوضع الليلي">
+    <svg id="themeIconLogin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+
+  <!-- اللوحة البصرية -->
+  <aside class="login-brand-panel" aria-hidden="true">
+    <span class="glow one"></span>
+    <span class="glow two"></span>
+
+    <header class="login-brand-header">
+      <div class="login-brand-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v18M6 9h12" />
+        </svg>
+      </div>
+      <div>
+        <h1>الخدمة اليومية</h1>
+        <p>كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</p>
+      </div>
+    </header>
+
+    <div class="login-brand-body">
+      <svg class="login-illustration" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.45" />
+            <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="200" cy="200" r="170" fill="url(#halo)" />
+        <g stroke="#ffffff" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round">
+          <line x1="200" y1="40"  x2="200" y2="66" />
+          <line x1="200" y1="334" x2="200" y2="360" />
+          <line x1="40"  y1="200" x2="66"  y2="200" />
+          <line x1="334" y1="200" x2="360" y2="200" />
+          <line x1="92"  y1="92"  x2="110" y2="110" />
+          <line x1="290" y1="290" x2="308" y2="308" />
+          <line x1="290" y1="110" x2="308" y2="92"  />
+          <line x1="92"  y1="308" x2="110" y2="290" />
+        </g>
+        <rect x="184" y="110" width="32" height="200" rx="6" fill="#ffffff" />
+        <rect x="120" y="174" width="160" height="32" rx="6" fill="#ffffff" />
+      </svg>
+
+      <div class="login-verse">
+        <p>«سِرَاجٌ لِرِجْلِي كَلاَمُكَ وَنُورٌ لِسَبِيلِي»</p>
+        <span>مزمور ١١٩: ١٠٥</span>
+      </div>
+    </div>
+
+    <footer class="login-brand-footer">
+      <span>الإصدار v2.0 — أوفلاين</span>
+      <span>قراءة • تأمل • صلاة • تحدٍّ</span>
+    </footer>
+  </aside>
+
+  <!-- لوحة النموذج -->
+  <section class="login-form-panel">
+    <div class="login-card" id="loginCard">
+
+      <div class="login-card-brand">
+        <div class="login-brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v18M6 9h12" />
+          </svg>
+        </div>
+        <div>
+          <h2>الخدمة اليومية</h2>
+          <p>كنيسة العذراء مريم والشهيد مارجرجس</p>
+        </div>
+      </div>
+
+      <div class="login-card-title-row">
+        <h3 class="login-card-title">تسجيل الدخول</h3>
+        <span class="offline-badge">
+          <span class="dot"></span>
+          يعمل أوفلاين
+        </span>
+      </div>
+      <p class="login-card-subtitle">أهلاً بك، من فضلك أدخل بياناتك للمتابعة.</p>
+
+      <form id="loginForm" novalidate autocomplete="on">
+        <div class="login-field">
+          <label for="email">البريد الإلكتروني</label>
+          <div class="input-wrap" id="emailWrap">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-10 5L2 7" />
+              </svg>
+            </span>
+            <input type="email" id="email" placeholder="name@example.com" inputmode="email" autocomplete="username" required aria-describedby="emailError" />
+          </div>
+          <p class="field-error" id="emailError" role="alert"></p>
+        </div>
+
+        <div class="login-field">
+          <label for="password">كلمة المرور</label>
+          <div class="input-wrap" id="passwordWrap">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </span>
+            <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required aria-describedby="passwordError" />
+            <button type="button" class="toggle-pass" id="togglePass" aria-label="إظهار كلمة المرور" aria-pressed="false">
+              <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+          <p class="field-error" id="passwordError" role="alert"></p>
+        </div>
+
+        <div class="login-row-between">
+          <label class="checkbox">
+            <input type="checkbox" id="remember" checked />
+            تذكّرني على هذا الجهاز
+          </label>
+          <a href="#" class="link-muted" id="forgotLink">نسيت كلمة المرور؟</a>
+        </div>
+
+        <button type="submit" class="btn-login" id="submitBtn">
+          <span class="spinner"></span>
+          <span class="btn-label">دخول</span>
+        </button>
+      </form>
+
+      <div class="login-divider">
+        <span>أو</span>
+      </div>
+
+      <button type="button" class="btn-secondary" id="openCreateAccountBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="8.5" cy="7" r="4"/>
+          <line x1="20" y1="8" x2="20" y2="14"/>
+          <line x1="23" y1="11" x2="17" y2="11"/>
+        </svg>
+        إنشاء حساب خادم جديد
+      </button>
+
+      <div class="demo-box" id="demoBox">
+        <div class="demo-box-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3h6l1 4h4v14H4V7h4z" />
+            <path d="M9 12h6M9 16h4" />
+          </svg>
+          <span>🧪 حسابات تجريبية — اضغط لملء البيانات</span>
+        </div>
+        <p class="demo-hint">للتجربة فقط. اضغط على أي حساب → يتم ملء البريد وكلمة المرور → اضغط «دخول».</p>
+        <div id="demoAccountsList"></div>
+      </div>
+
+      <div class="login-card-footer">
+        <strong>الخدمة اليومية</strong> — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد
+        <br />
+        © <span id="year"></span> — نسخة أوفلاين للتجربة
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- =========================================================
+     التطبيق الرئيسي
+     ========================================================= -->
+<div id="app-shell">
+  <header class="app-header">
+    <div class="header-top">
+      <div class="church-brand">
+        <div class="church-logo-svg">
+          <svg viewBox="0 0 100 100" width="36" height="36">
+            <defs>
+              <linearGradient id="copticGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fde047"/>
+                <stop offset="100%" stop-color="#f59e0b"/>
+              </linearGradient>
+            </defs>
+            <path d="M43 12 H57 V43 H88 V57 H57 V88 H43 V57 H12 V43 H43 Z" fill="url(#copticGold)"/>
+            <circle cx="50" cy="12" r="5" fill="#fff"/>
+            <circle cx="50" cy="88" r="5" fill="#fff"/>
+            <circle cx="12" cy="50" r="5" fill="#fff"/>
+            <circle cx="88" cy="50" r="5" fill="#fff"/>
+            <circle cx="50" cy="50" r="8" fill="#1e3a8a" stroke="#fff" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="church-title">
+          <h1>«الخدمة اليومية»</h1>
+          <p>كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="themeToggleApp" aria-label="تبديل الوضع الليلي">
+          <svg id="themeIconApp" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
+        <span id="current-role-badge" class="role-badge">👤 خادم</span>
+      </div>
+    </div>
+    <div class="role-switcher-bar" id="roleSwitcherBar" style="display:none;">
+      <span style="color:#cbd5e1;">معاينة سريعة للأدوار (للمالك فقط):</span>
+      <div class="role-btns" id="quick-role-switcher"></div>
+    </div>
+  </header>
+
+  <main class="app-container">
+
+    <!-- ==================== تبويب اليوم ==================== -->
+    <section id="tab-today" class="tab-section active">
+      <div class="today-sub-nav">
+        <button class="today-sub-btn active" data-sub="plan" onclick="switchTodaySub('plan')">📅 الخطة اليومية</button>
+        <button class="today-sub-btn" data-sub="reading" onclick="switchTodaySub('reading')">📖 قراءة</button>
+      </div>
+
+      <div id="today-sub-plan" class="today-sub-panel active">
+      <div class="hero-verse-card animate-card">
+        <div class="hero-verse-content">
+          <span class="hero-verse-tag">✨ شعار اليوم الروحي</span>
+          <div class="hero-verse-quote">«اُثْبُتُوا فِيَّ وَأَنَا فِيكُمْ... الَّذِي يَثْبُتُ فِيَّ وَأَنَا فِيهِ هذَا يَأْتِي بِثَمَرٍ كَثِيرٍ»</div>
+          <div style="font-size:0.78rem; color:#fde68a; margin-top:6px;">إنجيل معلمنا يوحنا ١٥ : ٤ - ٥</div>
+        </div>
+        <svg class="hero-illustration" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="54" fill="rgba(255,255,255,0.08)" stroke="rgba(253,224,71,0.4)" stroke-width="2"/>
+          <circle cx="60" cy="36" r="18" fill="#fbbf24" opacity="0.9"/>
+          <path d="M25 88 Q60 65 95 88" stroke="#4ade80" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <path d="M60 95 V48" stroke="#fde047" stroke-width="5" stroke-linecap="round"/>
+          <path d="M46 62 H74" stroke="#fde047" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="42" cy="78" r="5" fill="#a855f7"/>
+          <circle cx="48" cy="83" r="5" fill="#9333ea"/>
+          <circle cx="78" cy="78" r="5" fill="#a855f7"/>
+          <circle cx="72" cy="83" r="5" fill="#9333ea"/>
+        </svg>
+      </div>
+
+      <div id="celebration-banner" class="celebration-banner">
+        🎉 مبارك! أتممت جميع مهامك الروحية اليوم بنجاح ١٠٠٪
+      </div>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val"><span class="flame-anim">🔥</span> <span id="streak-count">12</span></div>
+          <div class="stat-lbl">يوم استمرارية</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="today-percent" style="color:var(--success);">0%</div>
+          <div class="stat-lbl">إنجاز اليوم</div>
+        </div>
+        <div class="stat-box" id="team-active-box">
+          <div class="stat-val" id="team-active">📊 0%</div>
+          <div class="stat-lbl" id="team-active-lbl">إجمالي الإنجاز</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📅 خطة اليوم (<span id="today-date-label"></span>)</div>
+          <span class="badge badge-gold" id="plan-verse-ref">يوحنا ١٥ : ١ - ١٢</span>
+        </div>
+        <div class="progress-ring-wrap">
+          <div class="p-ring" id="today-ring">
+            <svg class="p-ring-svg" viewBox="0 0 90 90" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" style="stop-color:var(--primary-light)"/>
+                  <stop offset="100%" style="stop-color:var(--success)"/>
+                </linearGradient>
+              </defs>
+              <circle class="p-ring-bg" cx="45" cy="45" r="38"/>
+              <circle class="p-ring-fg" id="today-ring-fg" cx="45" cy="45" r="38" stroke="url(#ringGrad)"/>
+            </svg>
+            <div class="p-ring-center" id="today-ring-pct">0%</div>
+          </div>
+          <div class="p-ring-text">
+            <strong id="today-ring-title">ابدأ يومك بالصلاة</strong>
+            <span id="today-ring-sub">0 من 4 مهام</span>
+          </div>
+        </div>
+
+        <div class="task-block" id="task-block-reading">
+          <div class="task-item" id="task-row-reading">
+            <div class="task-info" role="button" tabindex="0" aria-expanded="false" onclick="toggleTaskPanel('reading')" onkeydown="taskKey(event,'reading')">
+              <div class="task-icon-circle">📖</div>
+              <div class="task-info-text">
+                <strong>القراءة اليومية</strong>
+                <div style="font-size:0.8rem; color:var(--text-muted);" id="plan-reading-title">إنجيل يوحنا الأصحاح ١٥</div>
+              </div>
+              <span class="task-chev" aria-hidden="true">▾</span>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-done-reading" onclick="toggleTask('reading')">تم</button>
+          </div>
+          <div class="task-panel" id="task-panel-reading">
+            <div id="task-reading-content"></div>
+          </div>
+        </div>
+
+        <div class="task-block" id="task-block-meditation">
+          <div class="task-item" id="task-row-meditation">
+            <div class="task-info" role="button" tabindex="0" aria-expanded="false" onclick="toggleTaskPanel('meditation')" onkeydown="taskKey(event,'meditation')">
+              <div class="task-icon-circle">💭</div>
+              <div class="task-info-text">
+                <strong>تأمل اليوم</strong>
+                <div style="font-size:0.8rem; color:var(--text-muted);" id="plan-meditation-preview">الثبات في المسيح سر ثمر الخدمة...</div>
+              </div>
+              <span class="task-chev" aria-hidden="true">▾</span>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-done-meditation" onclick="toggleTask('meditation')">تم</button>
+          </div>
+          <div class="task-panel" id="task-panel-meditation">
+            <div id="task-meditation-content"></div>
+          </div>
+        </div>
+
+        <div class="task-block" id="task-block-prayer">
+          <div class="task-item" id="task-row-prayer">
+            <div class="task-info" role="button" tabindex="0" aria-expanded="false" onclick="toggleTaskPanel('prayer')" onkeydown="taskKey(event,'prayer')">
+              <div class="task-icon-circle">🙏</div>
+              <div class="task-info-text">
+                <strong>صلاة من الأجبية</strong>
+                <div style="font-size:0.8rem; color:var(--text-muted);" id="plan-prayer-title">صلاة باكر — المزمور الخمسون</div>
+              </div>
+              <span class="task-chev" aria-hidden="true">▾</span>
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-done-prayer" onclick="toggleTask('prayer')">تم</button>
+          </div>
+          <div class="task-panel" id="task-panel-prayer">
+            <select id="task-prayer-select" class="form-control" style="margin-bottom:12px;" onchange="renderPrayerText()"></select>
+            <div id="task-prayer-text" class="scripture-text"></div>
+            <div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="openAgpeya()">🙏 فتح في قسم القراءة</button></div>
+          </div>
+        </div>
+
+        <div class="task-item" id="task-row-challenge">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="task-icon-circle">🎯</div>
+            <div>
+              <strong>تحدي الخدمة العملي</strong>
+              <div style="font-size:0.8rem; color:var(--text-muted);" id="plan-challenge-title">افتقاد مخدوم غائب برسالة أو اتصال</div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-done-challenge" onclick="toggleTask('challenge')">تم</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🕊️ تأمل روحي للخدام</div>
+          <button class="btn btn-primary btn-sm" onclick="goAddReflection()">✍️ أضف تأمل</button>
+        </div>
+        <p id="full-meditation-text" style="line-height:1.9; font-size:0.96rem; color:var(--text);"></p>
+      </div>
+      </div>
+
+      <div id="today-sub-reading" class="today-sub-panel">
+        <div class="reading-mode-nav">
+          <button class="reading-mode-btn active" data-mode="bible" onclick="setReadingMode('bible')">📖 الكتاب المقدس</button>
+          <button class="reading-mode-btn" data-mode="agpeya" onclick="setReadingMode('agpeya')">🙏 الأجبية</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title" id="reading-title">📖 الكتاب المقدس</div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-outline btn-sm" onclick="changeFontSize(-1)">A-</button>
+              <button class="btn btn-outline btn-sm" onclick="changeFontSize(1)">A+</button>
+            </div>
+          </div>
+          <div class="scripture-banner">
+            <svg width="44" height="44" viewBox="0 0 64 64">
+              <path d="M8 14 C18 14, 28 18, 32 22 C36 18, 46 14, 56 14 V48 C46 48, 36 52, 32 56 C28 52, 18 48, 8 48 Z" fill="var(--surface)" stroke="#d97706" stroke-width="3"/>
+              <line x1="32" y1="22" x2="32" y2="56" stroke="#d97706" stroke-width="2.5"/>
+              <path d="M32 28 V42 M27 33 H37" stroke="#1e3a8a" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <div>
+              <strong style="color:var(--gold); font-size:0.9rem;">قراءة أوفلاين ١٠٠٪</strong>
+              <div style="font-size:0.78rem; color:var(--text-muted);">تصفح نصوص الإنجيل والأجبية المقدسة في أي وقت بدون إنترنت</div>
+            </div>
+          </div>
+          <div id="reading-selectors" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
+            <div id="reading-book-wrap">
+              <label class="form-label">اختر السفر:</label>
+              <select id="bible-book-select" class="form-control" onchange="updateChapterSelector()"></select>
+            </div>
+            <div>
+              <label class="form-label" id="reading-chapter-label">الأصحاح:</label>
+              <select id="bible-chapter-select" class="form-control" onchange="renderScripture()"></select>
+            </div>
+          </div>
+          <div id="scripture-display" class="scripture-text"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== تبويب المسابقة ==================== -->
+    <section id="tab-contest" class="tab-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🏆 المسابقة الأسبوعية للخدام</div>
+          <span class="badge badge-blue" id="contest-book-badge">سفر أعمال الرسل</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; background:var(--primary-soft); padding:12px; border-radius:12px; margin-bottom:14px;">
+          <svg width="42" height="42" viewBox="0 0 64 64">
+            <path d="M20 12 H44 V28 C44 36, 38 42, 32 42 C26 42, 20 36, 20 28 Z" fill="#f59e0b"/>
+            <path d="M20 16 H12 C12 24, 16 28, 20 28 M44 16 H52 C52 24, 48 28, 44 28" stroke="#d97706" stroke-width="3" fill="none"/>
+            <rect x="28" y="42" width="8" height="8" fill="#d97706"/>
+            <rect x="20" y="50" width="24" height="6" rx="3" fill="#1e3a8a"/>
+          </svg>
+          <p style="font-size:0.84rem; color:var(--primary); font-weight:600;" id="contest-schedule-info"></p>
+        </div>
+        <div id="contest-schedule-note" class="sched-note" style="display:none;"></div>
+        <div id="quiz-container"></div>
+        <div id="quiz-result-box" style="display:none; padding:16px; background:var(--success-soft); border-radius:14px; margin-top:14px; border:1.5px solid var(--success); animation: popIn 0.4s ease;"></div>
+      </div>
+
+    </section>
+
+    <!-- ==================== تبويب المشاركات ==================== -->
+    <section id="tab-posts" class="tab-section">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">✍️ أضف تأمل أو مشاركة روحية</div>
+        </div>
+        <div class="form-group">
+          <textarea id="new-post-text" class="form-control" placeholder="اكتب تأملك، آية لمست قلبك، أو طلبة صلاة..."></textarea>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <select id="new-post-visibility" class="form-control" style="width:auto;">
+            <option value="public">🌍 مشاركة عامة (يراها الخدام)</option>
+            <option value="private">🔒 خاصة لي فقط (محمية على جهازي)</option>
+          </select>
+          <button class="btn btn-primary" onclick="createPost()">✨ نشر المشاركة</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">💬 المشاركات</div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-sm btn-primary" id="filter-all-btn" onclick="setPostFilter('all')">🌍 الكل</button>
+            <button class="btn btn-sm btn-outline" id="filter-mine-btn" onclick="setPostFilter('mine')">👤 مشاركاتي</button>
+          </div>
+        </div>
+        <div style="background:var(--surface-alt); border:1px solid var(--border); padding:10px 14px; border-radius:12px; font-size:0.78rem; color:var(--text-muted); margin-bottom:14px;">
+          🔒 <strong>آلية الخصوصية:</strong> المشاركات الخاصة لا تظهر إلا لصاحبها فقط.
+        </div>
+        <div id="posts-list"></div>
+        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="exportBackup()">💾 تنزيل نسخة احتياطية (JSON)</button>
+          <label class="btn btn-outline btn-sm" style="cursor:pointer;">
+            📥 استرجاع نسخة
+            <input type="file" accept=".json" style="display:none;" onchange="importBackup(event)" />
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== تبويب حسابي ==================== -->
+    <section id="tab-profile" class="tab-section">
+
+      <!-- لوحة الشرف والنتائج (نتائج الخادم) -->
+      <div class="card honor-card">
+        <div class="honor-hero">
+          <div class="honor-ring" id="honor-ring" style="--pct:0">
+            <div class="honor-ring-inner" id="honor-best">0%</div>
+          </div>
+          <div class="honor-hero-text">
+            <div class="honor-label">🏆 لوحة الشرف والنتائج</div>
+            <div class="honor-name" id="honor-name"></div>
+            <div class="honor-sub">أفضل نتيجة لك في المسابقة</div>
+            <span class="honor-rank" id="honor-rank"></span>
+          </div>
+        </div>
+        <div class="honor-body">
+          <div class="honor-stats">
+            <div class="honor-stat"><div class="honor-stat-val" id="honor-attempts">0</div><div class="honor-stat-lbl">عدد المحاولات</div></div>
+            <div class="honor-stat"><div class="honor-stat-val" id="honor-last">—</div><div class="honor-stat-lbl">آخر درجة</div></div>
+            <div class="honor-stat"><div class="honor-stat-val" id="honor-avg">—</div><div class="honor-stat-lbl">المتوسط</div></div>
+          </div>
+          <div class="honor-history-title">📜 سجل محاولاتي</div>
+          <div id="my-results-list"></div>
+        </div>
+      </div>
+
+      <!-- استمراريتي: تقويم + أوسمة -->
+      <div class="card" id="streak-card">
+        <div class="card-header">
+          <div class="card-title">🔥 استمراريتي</div>
+          <span class="badge badge-gold" id="streak-badge"></span>
+        </div>
+        <div class="honor-stats">
+          <div class="honor-stat"><div class="honor-stat-val" id="streak-cur">0</div><div class="honor-stat-lbl">الحالية (يوم)</div></div>
+          <div class="honor-stat"><div class="honor-stat-val" id="streak-best">0</div><div class="honor-stat-lbl">الأطول (يوم)</div></div>
+          <div class="honor-stat"><div class="honor-stat-val" id="streak-days">0</div><div class="honor-stat-lbl">أيام النشاط</div></div>
+        </div>
+        <div class="cal-head">
+          <button type="button" class="cal-nav-btn" onclick="calNav(-1)" aria-label="الشهر السابق">→</button>
+          <strong id="cal-title"></strong>
+          <button type="button" class="cal-nav-btn" id="cal-next" onclick="calNav(1)" aria-label="الشهر التالي">←</button>
+        </div>
+        <div class="cal-weekdays"><span>س</span><span>ح</span><span>ن</span><span>ث</span><span>ر</span><span>خ</span><span>ج</span></div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          <span>أقل</span>
+          <i class="cal-cell lvl0"></i><i class="cal-cell lvl1"></i><i class="cal-cell lvl2"></i><i class="cal-cell lvl3"></i><i class="cal-cell lvl4"></i>
+          <span>أكثر</span>
+        </div>
+        <div class="honor-history-title" style="margin-top:16px;">🏅 أوسمتي (أيام متتالية)</div>
+        <div class="badges-grid" id="badges-grid"></div>
+      </div>
+
+      <!-- إعدادات الحساب (قابلة للطي) -->
+      <div class="card settings-card" id="settings-card">
+        <button type="button" class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" aria-expanded="false" aria-controls="settings-body">
+          <div>
+            <div class="card-title">⚙️ إعدادات حسابي</div>
+            <div class="settings-hint">الاسم · كلمة المرور · حجم الخط · تسجيل الخروج</div>
+          </div>
+          <span class="settings-chev" aria-hidden="true">▾</span>
+        </button>
+        <div id="settings-body" class="settings-body">
+        <div class="form-group">
+          <label class="form-label">الاسم المعروض:</label>
+          <input type="text" id="profile-name-input" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">البريد الإلكتروني:</label>
+          <input type="email" id="profile-email-display" class="form-control" disabled />
+        </div>
+        <div class="form-group">
+          <label class="form-label">الدور الحالي:</label>
+          <input type="text" id="profile-role-display" class="form-control" disabled />
+        </div>
+        <div class="form-group">
+          <label class="form-label">تغيير كلمة المرور:</label>
+          <input type="password" id="profile-pass-input" class="form-control" placeholder="أدخل كلمة مرور جديدة (٦ أحرف على الأقل)" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">حجم خط القراءة:</label>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="changeFontSize(-1)">تصغير A-</button>
+            <button class="btn btn-outline btn-sm" onclick="changeFontSize(1)">تكبير A+</button>
+            <button class="btn btn-outline btn-sm" onclick="resetFontSize()">افتراضي</button>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button class="btn btn-primary" onclick="saveProfile()">💾 حفظ التعديلات</button>
+          <button class="btn btn-danger" onclick="logout()">🚪 تسجيل خروج</button>
+        </div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px; text-align:center; font-size:0.78rem; color:var(--text-muted);">الإصدار: <span id="app-version" dir="ltr" style="display:inline-block;"></span></div>
+    </section>
+
+    <!-- ==================== تبويب الإدارة ==================== -->
+    <section id="tab-admin" class="tab-section">
+      <div class="sub-nav" id="admin-sub-nav">
+        <button class="sub-btn active" onclick="switchAdminSub('plan', this)">📅 الخطة اليومية</button>
+        <button class="sub-btn" onclick="switchAdminSub('schedule', this)">🗓️ مواعيد المسابقة</button>
+        <button class="sub-btn" onclick="switchAdminSub('tracking', this)">📊 متابعة الخدام</button>
+        <button class="sub-btn" onclick="switchAdminSub('live', this)">🏅 النتائج المباشرة</button>
+        <button class="sub-btn" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
+        <button class="sub-btn owner-only" onclick="switchAdminSub('accounts', this)">👥 الحسابات (مالك)</button>
+        <button class="sub-btn owner-only" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
+      </div>
+
+      <div id="admin-sub-plan" class="admin-panel card">
+        <div class="card-header"><div class="card-title">📅 تحديد الخطة اليومية</div></div>
+        <div class="form-group">
+          <label class="form-label">📖 السفر (من ملف القراءة):</label>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <select id="admin-plan-book" class="form-control" onchange="adminPlanBookChanged()"></select>
+            <select id="admin-plan-chapter" class="form-control" onchange="adminPlanChapterChanged()"></select>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">شاهد القراءة:</label><input type="text" id="admin-plan-ref" class="form-control" /></div>
+        <div class="form-group"><label class="form-label">عنوان القراءة:</label><input type="text" id="admin-plan-reading" class="form-control" /></div>
+        <div class="form-group"><label class="form-label">نص التأمل اليومي:</label><textarea id="admin-plan-meditation" class="form-control"></textarea></div>
+        <div class="json-box">
+          <label class="form-label">⬆️ رفع التأمل (JSON):</label>
+          <input type="file" id="admin-med-file" accept=".json,application/json" class="form-control" onchange="adminLoadJson('meditation', this)" />
+          <select id="admin-med-pick" class="form-control" style="display:none; margin-top:8px;" onchange="adminPickJson('meditation')"></select>
+          <p class="json-hint">يقبل نصًا واحدًا أو قائمة. الحقول: <code dir="ltr">meditation</code> أو <code dir="ltr">reflection</code> أو <code dir="ltr">تأمل</code>، واختياريًا <code dir="ltr">ref</code> و<code dir="ltr">verse</code> و<code dir="ltr">date</code> (YYYY-MM-DD). اكتب <code dir="ltr">{name}</code> داخل النص ليُستبدل باسم الخادم المسجّل، وإن لم تكتبه يُضاف الاسم تلقائيًا أعلى الرسالة.</p>
+        </div>
+        <div class="form-group"><label class="form-label">صلاة الأجبية:</label><input type="text" id="admin-plan-prayer" class="form-control" /></div>
+        <div class="form-group"><label class="form-label">تحدي الخدمة العملي:</label><input type="text" id="admin-plan-challenge" class="form-control" /></div>
+        <div class="json-box">
+          <label class="form-label">⬆️ رفع الخدمة العملية (JSON):</label>
+          <input type="file" id="admin-chal-file" accept=".json,application/json" class="form-control" onchange="adminLoadJson('challenge', this)" />
+          <select id="admin-chal-pick" class="form-control" style="display:none; margin-top:8px;" onchange="adminPickJson('challenge')"></select>
+          <p class="json-hint">يقبل نصًا واحدًا أو قائمة. الحقول: <code dir="ltr">challenge</code> أو <code dir="ltr">service</code> أو <code dir="ltr">الخدمة</code>، واختياريًا <code dir="ltr">date</code>. يدعم <code dir="ltr">{name}</code> أيضًا.</p>
+        </div>
+        <button class="btn btn-primary" onclick="saveAdminPlan()">💾 حفظ وتعميم الخطة</button>
+      </div>
+
+      <div id="admin-sub-schedule" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🗓️ تحديد مواعيد المسابقة</div></div>
+        <div class="form-group"><label class="form-label">سفر المسابقة:</label><input type="text" id="admin-sched-book" class="form-control" /></div>
+        <div class="form-group"><label class="form-label">ملاحظات / موعد الفتح والإغلاق:</label><input type="text" id="admin-sched-info" class="form-control" /></div>
+        <div class="form-group">
+          <label class="form-label">🟢 بداية المسابقة:</label>
+          <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
+            <input type="date" id="admin-sched-start-date" class="form-control" />
+            <input type="time" id="admin-sched-start-time" class="form-control" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">🔴 نهاية المسابقة:</label>
+          <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
+            <input type="date" id="admin-sched-end-date" class="form-control" />
+            <input type="time" id="admin-sched-end-time" class="form-control" />
+          </div>
+          <p class="json-hint">بعد الحفظ تظهر البداية والنهاية للخادم كملاحظة داخل تبويب المسابقة.</p>
+        </div>
+        <div class="form-group"><label class="form-label">مؤقت كل سؤال بالثواني (٠ = بدون مؤقت):</label><input type="number" min="0" max="300" id="admin-sched-timer" class="form-control" placeholder="0" /></div>
+        <button class="btn btn-primary" onclick="saveAdminSchedule()">💾 حفظ الموعد</button>
+      </div>
+
+      <div id="admin-sub-tracking" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">📊 متابعة تقدّم الخدام</div></div>
+        <div id="admin-tracking-body"></div>
+      </div>
+
+      <div id="admin-sub-live" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🏅 لوحة النتائج المباشرة</div><span class="live-badge"><i></i>مباشر</span></div>
+        <div class="reading-mode-nav" id="admin-live-filters">
+          <button class="reading-mode-btn active" data-f="last">آخر مسابقة</button>
+          <button class="reading-mode-btn" data-f="best">أعلى درجة</button>
+          <button class="reading-mode-btn" data-f="all">كل المسابقات</button>
+        </div>
+        <div id="admin-live-body"></div>
+      </div>
+
+      <div id="admin-sub-moderation" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🙈 الإشراف على المشاركات العامة</div></div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">يمكنك إخفاء أو حذف المشاركات العامة فقط. المشاركات الخاصة معزولة ولا تظهر هنا.</p>
+        <div id="admin-moderation-list"></div>
+      </div>
+
+      <div id="admin-sub-accounts" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">👥 إدارة الحسابات والصلاحيات</div></div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:14px;">
+          <input type="text" id="new-acc-name" class="form-control" placeholder="الاسم" />
+          <input type="email" id="new-acc-email" class="form-control" placeholder="البريد" />
+          <select id="new-acc-stage" class="form-control"></select>
+          <select id="new-acc-role" class="form-control">
+            <option value="servant">👤 خادم</option>
+            <option value="admin">🛡️ مسؤول</option>
+            <option value="owner">👑 مالك</option>
+          </select>
+          <button class="btn btn-primary" style="grid-column:1 / -1;" onclick="adminAddAccount()">+ إضافة</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>الاسم</th><th>المرحلة</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <tbody id="owner-accounts-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="admin-sub-json" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">⬆️ إدارة المحتوى ورفع ملفات JSON</div></div>
+        <div class="form-group">
+          <label class="form-label">تعديل أسئلة المسابقة (صيغة JSON):</label>
+          <textarea id="owner-contest-json" class="form-control" style="font-family:monospace; direction:ltr; text-align:left; min-height:170px;"></textarea>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-gold" onclick="saveOwnerContestJson()">⬆️ تحديث أسئلة المسابقة</button>
+          <button class="btn btn-outline" onclick="resetDemoData()">🔄 استعادة البيانات الافتراضية</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-tab="today" onclick="switchTab('today')"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span><span>اليوم</span></button>
+    <button class="nav-item" data-tab="contest" onclick="switchTab('contest')"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg></span><span>المسابقة</span></button>
+    <button class="nav-item" data-tab="posts" onclick="switchTab('posts')"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg></span><span>المشاركات</span></button>
+    <button class="nav-item" data-tab="profile" onclick="switchTab('profile')"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.4 4.3-6 8-6s7 1.6 8 6"/></svg></span><span>حسابي</span></button>
+    <button class="nav-item" id="nav-admin" data-tab="admin" onclick="switchTab('admin')"><span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.7 3.1 8.2 7.5 9.5 4.4-1.3 7.5-4.8 7.5-9.5V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span>الإدارة</span></button>
+  </nav>
+</div>
+
+<!-- =========================================================
+     المودالات
+     ========================================================= -->
+<div class="modal-overlay" id="createAccountModal" role="dialog" aria-modal="true" aria-labelledby="createAccTitle">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('createAccountModal')" aria-label="إغلاق">✕</button>
+    <h3 id="createAccTitle">✨ إنشاء حساب خادم جديد</h3>
+    <p class="modal-sub">سيتم إنشاء حساب بدور «خادم». يمكن للمالك ترقيتك لاحقاً.</p>
+    <form id="createAccountForm" novalidate>
+      <div class="form-group">
+        <label class="form-label">الاسم الكامل:</label>
+        <input type="text" id="ca-name" class="form-control" placeholder="مثال: مينا جورج" required />
+        <p class="field-error" id="ca-name-error"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">المرحلة:</label>
+        <select id="ca-stage" class="form-control" required></select>
+        <p class="field-error" id="ca-stage-error"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">البريد الإلكتروني:</label>
+        <input type="email" id="ca-email" class="form-control" placeholder="name@example.com" required />
+        <p class="field-error" id="ca-email-error"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">كلمة المرور:</label>
+        <input type="password" id="ca-pass" class="form-control" placeholder="٦ أحرف على الأقل" required />
+        <p class="field-error" id="ca-pass-error"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">تأكيد كلمة المرور:</label>
+        <input type="password" id="ca-pass2" class="form-control" placeholder="أعد إدخال كلمة المرور" required />
+        <p class="field-error" id="ca-pass2-error"></p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('createAccountModal')">إلغاء</button>
+        <button type="submit" class="btn btn-primary">إنشاء الحساب</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- =========================================================
+     SECTION 10: JAVASCRIPT
+     ========================================================= -->
+<script src="js/version.js"></script>
+<script src="js/app.js"></script>
+<script src="js/pwa.js"></script>
+</body>
+</html>
