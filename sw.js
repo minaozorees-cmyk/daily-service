@@ -1,6 +1,6 @@
-/* الخدمة اليومية — Service Worker (v1.0)
-   غيّر VERSION مع كل إصدار. لا skipWaiting في v1.0 عمدًا (التحديث الآمن في v1.2). */
-const VERSION = 'v1.0';
+/* الخدمة اليومية — Service Worker (v1.1)
+   غيّر VERSION مع كل إصدار. لا skipWaiting عمدًا (التحديث الآمن في v1.2). */
+const VERSION = 'v1.1';
 const CACHE = 'ds-' + VERSION;
 const FONTS = 'ds-fonts-v1';              // كاش الخطوط مستقل: لا يُمسح عند تغيّر VERSION
 const SCOPE = self.registration.scope;    // ينتهي بـ / (مثال: https://user.github.io/daily-service/)
@@ -11,7 +11,7 @@ const NAV_TIMEOUT_MS = 5000;              // شبكة بطيئة/متقطعة �
 const SHELL = [
   './', 'index.html', 'manifest.json',
   'css/app.css',
-  'js/version.js', 'js/app.js', 'js/pwa.js',
+  'js/version.js', 'js/config.js', 'js/supa.js', 'js/auth.js', 'js/app.js', 'js/pwa.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'
 ];
 
