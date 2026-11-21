@@ -175,18 +175,6 @@
         إنشاء حساب خادم جديد
       </button>
 
-      <div class="demo-box" id="demoBox">
-        <div class="demo-box-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 3h6l1 4h4v14H4V7h4z" />
-            <path d="M9 12h6M9 16h4" />
-          </svg>
-          <span>🧪 حسابات تجريبية — اضغط لملء البيانات</span>
-        </div>
-        <p class="demo-hint">للتجربة فقط. اضغط على أي حساب → يتم ملء البريد وكلمة المرور → اضغط «دخول».</p>
-        <div id="demoAccountsList"></div>
-      </div>
-
       <div class="login-card-footer">
         <strong>الخدمة اليومية</strong> — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد
         <br />
@@ -235,10 +223,6 @@
         </button>
         <span id="current-role-badge" class="role-badge">👤 خادم</span>
       </div>
-    </div>
-    <div class="role-switcher-bar" id="roleSwitcherBar" style="display:none;">
-      <span style="color:#cbd5e1;">معاينة سريعة للأدوار (للمالك فقط):</span>
-      <div class="role-btns" id="quick-role-switcher"></div>
     </div>
   </header>
 
@@ -597,7 +581,7 @@
         <button class="sub-btn" onclick="switchAdminSub('tracking', this)">📊 متابعة الخدام</button>
         <button class="sub-btn" onclick="switchAdminSub('live', this)">🏅 النتائج المباشرة</button>
         <button class="sub-btn" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
-        <button class="sub-btn owner-only" onclick="switchAdminSub('accounts', this)">👥 الحسابات (مالك)</button>
+        <button class="sub-btn" onclick="switchAdminSub('accounts', this)">👥 الحسابات</button>
         <button class="sub-btn owner-only" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
       </div>
 
@@ -676,20 +660,12 @@
 
       <div id="admin-sub-accounts" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">👥 إدارة الحسابات والصلاحيات</div></div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-bottom:14px;">
-          <input type="text" id="new-acc-name" class="form-control" placeholder="الاسم" />
-          <input type="email" id="new-acc-email" class="form-control" placeholder="البريد" />
-          <select id="new-acc-stage" class="form-control"></select>
-          <select id="new-acc-role" class="form-control">
-            <option value="servant">👤 خادم</option>
-            <option value="admin">🛡️ مسؤول</option>
-            <option value="owner">👑 مالك</option>
-          </select>
-          <button class="btn btn-primary" style="grid-column:1 / -1;" onclick="adminAddAccount()">+ إضافة</button>
+        <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" onclick="refreshAccounts(false)">🔄 تحديث القائمة</button>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>الاسم</th><th>المرحلة</th><th>البريد</th><th>الدور</th><th>الحالة</th><th>إجراء</th></tr></thead>
+            <thead><tr><th>الاسم</th><th>الإيميل</th><th>رقم التليفون</th><th>المرحلة</th><th>آخر دخول</th><th>الحالة</th><th>إجراء</th></tr></thead>
             <tbody id="owner-accounts-body"></tbody>
           </table>
         </div>
@@ -703,7 +679,6 @@
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-gold" onclick="saveOwnerContestJson()">⬆️ تحديث أسئلة المسابقة</button>
-          <button class="btn btn-outline" onclick="resetDemoData()">🔄 استعادة البيانات الافتراضية</button>
         </div>
       </div>
     </section>
@@ -732,6 +707,11 @@
         <label class="form-label">الاسم الكامل:</label>
         <input type="text" id="ca-name" class="form-control" placeholder="مثال: مينا جورج" required />
         <p class="field-error" id="ca-name-error"></p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">رقم التليفون:</label>
+        <input type="tel" id="ca-phone" class="form-control" placeholder="مثال: 01012345678" inputmode="tel" autocomplete="tel" dir="ltr" style="text-align:right;" required />
+        <p class="field-error" id="ca-phone-error"></p>
       </div>
       <div class="form-group">
         <label class="form-label">المرحلة:</label>
@@ -767,6 +747,9 @@
      SECTION 10: JAVASCRIPT
      ========================================================= -->
 <script src="js/version.js"></script>
+<script src="js/config.js"></script>
+<script src="js/supa.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 <script src="js/pwa.js"></script>
 </body>
