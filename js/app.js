@@ -4,13 +4,8 @@
    10.1 البيانات الافتراضية
    =========================================================== */
 /* v10: مراحل الخدام */
-const STAGES = ['أولى ابتدائي', 'ثانية ابتدائي', 'ثالثة ابتدائي', 'رابعة ابتدائي', 'خامسة ابتدائي', 'سادسة ابتدائي'];
-
-const DEFAULT_ACCOUNTS = [
-  { id: 'u1', name: 'مينا جورج',  email: 'servant@bnikhalid.church', role: 'servant', pass: 'Servant@2026', active: true },
-  { id: 'u2', name: 'بيتر سمير',  email: 'admin@bnikhalid.church',   role: 'admin',   pass: 'Admin@2026',   active: true },
-  { id: 'u3', name: 'مينا ماجد',  email: 'owner@bnikhalid.church',   role: 'owner',   pass: 'Owner@2026',   active: true }
-];
+/* v1.1: المراحل تأتي من js/auth.js (أكواد للسيرفر + عناوين عربية). الحسابات التجريبية حُذفت. */
+const STAGES = Auth.STAGE_OPTIONS.map(s => s.label);
 
 const BIBLE_DATA = {
   'إنجيل يوحنا': {
@@ -74,8 +69,6 @@ const DEFAULT_POSTS = [
    10.2 مفاتيح التخزين
    =========================================================== */
 const STORE = {
-  session: 'ds_v2_session',
-  accounts: 'ds_v2_accounts',
   plan: 'ds_v2_plan',
   schedule: 'ds_v2_schedule',
   contest: 'ds_v2_contest',
@@ -132,60 +125,10 @@ document.getElementById('themeToggleApp').addEventListener('click', toggleTheme)
 /* ===========================================================
    10.4 الجلسة والمصادقة
    =========================================================== */
-function saveSession(session, remember) {
-  const json = JSON.stringify(session);
-  if (remember) { setStore(STORE.session, session); }
-  else { sessionStorage.setItem(STORE.session, json); }
-  if (!remember) removeStore(STORE.session);
-}
-
-function loadSession() {
-  try {
-    const fromSession = sessionStorage.getItem(STORE.session);
-    if (fromSession) return JSON.parse(fromSession);
-  } catch {}
-  return getStore(STORE.session, null);
-}
-
-function clearSession() {
-  removeStore(STORE.session);
-  try { sessionStorage.removeItem(STORE.session); } catch {}
-}
-
-function getCurrentUser() {
-  const session = loadSession();
-  if (!session) return null;
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  return accounts.find(a => a.id === session.userId && a.active) || null;
-}
-
-function attemptLogin(email, password) {
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  const user = accounts.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-  if (!user) return { ok: false, error: 'لا يوجد حساب بهذا البريد الإلكتروني.' };
-  if (!user.active) return { ok: false, error: 'هذا الحساب معطّل. تواصل مع المسؤول.' };
-  if (password !== user.pass) return { ok: false, error: 'كلمة المرور غير صحيحة.' };
-  return { ok: true, user };
-}
-
-function createServantAccount({ name, email, password, stage }) {
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  if (accounts.some(a => a.email.toLowerCase() === email.toLowerCase())) {
-    return { ok: false, error: 'هذا البريد مسجّل بالفعل.' };
-  }
-  const newUser = {
-    id: 'u_' + Date.now(),
-    name: name.trim(),
-    email: email.trim().toLowerCase(),
-    role: 'servant',
-    stage: stage || '',
-    pass: password,
-    active: true
-  };
-  accounts.push(newUser);
-  setStore(STORE.accounts, accounts);
-  return { ok: true, user: newUser };
-}
+/* v1.1: الجلسة والحسابات من js/auth.js (Supabase). نُبقي الدوال متزامنة للكود القديم. */
+function getCurrentUser() { return Auth.getUser(); }
+function getAccounts() { return Auth.getAccounts(); }
+function isStaffUser(u) { return !!u && (u.role === 'admin' || u.role === 'owner'); }
 
 /* ===========================================================
    10.5 أدوات واجهة المستخدم
@@ -277,76 +220,44 @@ function validateLogin() {
 }
 
 /* إرسال النموذج */
-loginForm.addEventListener('submit', (e) => {
+loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (submitBtn.disabled) return;
   clearFieldError(emailWrap, emailError);
   clearFieldError(passwordWrap, passwordError);
 
   if (!validateLogin()) { showToast('راجع البيانات المُدخلة.', 'error'); return; }
 
   setLoading(submitBtn, true, 'جارٍ التحقق…');
-  setTimeout(() => {
-    const result = attemptLogin(emailInput.value, passwordInput.value);
-    setLoading(submitBtn, false, 'دخول');
+  const result = await Auth.login(emailInput.value, passwordInput.value, rememberChk.checked);
+  setLoading(submitBtn, false, 'دخول');
 
-    if (!result.ok) { showToast(result.error, 'error'); return; }
+  if (!result.ok) { showToast(result.error, 'error'); return; }
 
-    saveSession({ userId: result.user.id, loginAt: Date.now() }, rememberChk.checked);
-    showToast(`أهلاً ${result.user.name} ✅`, 'success');
-    enterApp();
-  }, 400);
+  showToast(`أهلاً ${result.user.name} ✅`, 'success');
+  enterApp();
 });
 
 /* نسيت كلمة المرور */
 $('forgotLink').addEventListener('click', (e) => {
   e.preventDefault();
-  showToast('في النسخة التجريبية: استخدم بيانات الحسابات الظاهرة بالأسفل.', 'warning');
+  showToast('لو نسيت كلمة المرور، تواصل مع المسؤول.', 'warning');
 });
-
-/* بناء بطاقات الحسابات التجريبية */
-function renderDemoAccounts() {
-  const list = $('demoAccountsList');
-  list.innerHTML = '';
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  accounts.filter(a => a.active).forEach(user => {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'demo-account';
-    card.innerHTML = `
-      <div class="demo-account-info">
-        <span class="demo-account-role ${roleClass(user.role)}">${roleLabel(user.role)}</span>
-        <span class="demo-account-email">${user.email}</span>
-        <span class="demo-account-pass">${user.pass}</span>
-      </div>
-      <div class="demo-account-fill" aria-hidden="true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-    `;
-    card.addEventListener('click', () => {
-      emailInput.value = user.email;
-      passwordInput.value = user.pass;
-      clearFieldError(emailWrap, emailError);
-      clearFieldError(passwordWrap, passwordError);
-      showToast(`تم ملء بيانات ${roleLabel(user.role)} — اضغط «دخول».`, 'success');
-      submitBtn.focus({ preventScroll: true });
-    });
-    list.appendChild(card);
-  });
-}
 
 /* فتح مودال إنشاء الحساب */
 $('openCreateAccountBtn').addEventListener('click', () => {
   $('createAccountForm').reset();
-  ['ca-name-error','ca-stage-error','ca-email-error','ca-pass-error','ca-pass2-error'].forEach(id => {
+  ['ca-name-error','ca-phone-error','ca-stage-error','ca-email-error','ca-pass-error','ca-pass2-error'].forEach(id => {
     $(id).textContent = ''; $(id).classList.remove('visible');
   });
   openModal('createAccountModal');
 });
 
-/* حفظ حساب الخادم الجديد */
-$('createAccountForm').addEventListener('submit', (e) => {
+/* إنشاء حساب خادم جديد — v1.1: على Supabase، والحساب نشط فورًا */
+$('createAccountForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('ca-name').value.trim();
+  const phone = Auth.normalizePhone($('ca-phone').value);
   const email = $('ca-email').value.trim();
   const stage = $('ca-stage').value;
   const pass = $('ca-pass').value;
@@ -356,7 +267,10 @@ $('createAccountForm').addEventListener('submit', (e) => {
   if (!name || name.length < 2) { showFieldError(null, $('ca-name-error'), 'أدخل الاسم الكامل.'); valid = false; }
   else $('ca-name-error').classList.remove('visible');
 
-  if (!stage) { showFieldError(null, $('ca-stage-error'), 'اختر المرحلة.'); valid = false; }
+  if (!phone) { showFieldError(null, $('ca-phone-error'), 'رقم تليفون غير صالح (أرقام فقط، من ٨ إلى ١٥ رقمًا).'); valid = false; }
+  else $('ca-phone-error').classList.remove('visible');
+
+  if (!Auth.STAGE_OPTIONS.some(s => s.code === stage)) { showFieldError(null, $('ca-stage-error'), 'اختر المرحلة.'); valid = false; }
   else $('ca-stage-error').classList.remove('visible');
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showFieldError(null, $('ca-email-error'), 'بريد إلكتروني غير صالح.'); valid = false; }
@@ -370,12 +284,18 @@ $('createAccountForm').addEventListener('submit', (e) => {
 
   if (!valid) return;
 
-  const res = createServantAccount({ name, email, password: pass, stage });
-  if (!res.ok) { showFieldError(null, $('ca-email-error'), res.error); return; }
+  const btn = $('createAccountForm').querySelector('[type="submit"]');
+  btn.disabled = true;
+  const res = await Auth.signup({ name, phone, stage, email, password: pass });
+  btn.disabled = false;
+  if (!res.ok) {
+    if (res.error.indexOf('مسجّل بالفعل') !== -1) showFieldError(null, $('ca-email-error'), res.error);
+    else showToast(res.error, 'error');
+    return;
+  }
 
-  showToast(`✨ تم إنشاء حساب ${name} بنجاح — جاري الدخول...`, 'success');
+  showToast(`✨ تم إنشاء حساب ${res.user.name} بنجاح — جاري الدخول...`, 'success');
   closeModal('createAccountModal');
-  saveSession({ userId: res.user.id, loginAt: Date.now() }, true);
   setTimeout(() => enterApp(), 500);
 });
 
@@ -392,18 +312,18 @@ function enterApp() {
   switchTab('today');
   switchTodaySub('plan');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (isStaffUser(user)) refreshAccounts(true);
 }
 
-function logout() {
-  clearSession();
+function logout(message) {
+  Auth.logout();
   appShell.style.display = 'none';
   loginScreen.style.display = '';
   emailInput.value = '';
   passwordInput.value = '';
   clearFieldError(emailWrap, emailError);
   clearFieldError(passwordWrap, passwordError);
-  renderDemoAccounts();
-  showToast('تم تسجيل الخروج.', '');
+  showToast(typeof message === 'string' && message ? message : 'تم تسجيل الخروج.', '');
   setTimeout(() => emailInput.focus({ preventScroll: true }), 250);
 }
 
@@ -464,21 +384,7 @@ function renderAll() {
   const user = getCurrentUser();
   if (!user) return;
 
-  $('current-role-badge').textContent = `${roleLabel(user.role)}: ${user.name}` + (user.stage ? ` • ${user.stage}` : '');
-
-  // مبدّل الأدوار السريع — للمالك فقط
-  const roleBar = $('roleSwitcherBar');
-  if (user.role === 'owner') {
-    roleBar.style.display = '';
-    const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS).filter(a => a.active);
-    $('quick-role-switcher').innerHTML = accounts.map(a => `
-      <button class="role-btn ${a.id === user.id ? 'active' : ''}" onclick="quickSwitchUser('${a.id}')">
-        ${roleLabel(a.role)} (${a.name.split(' ')[0]})
-      </button>
-    `).join('');
-  } else {
-    roleBar.style.display = 'none';
-  }
+  $('current-role-badge').textContent = `${roleLabel(user.role)}: ${user.name}` + (user.stage && user.stageCode !== 'general' ? ` • ${user.stage}` : '');
 
   // إظهار/إخفاء تبويب الإدارة
   const navAdmin = $('nav-admin');
@@ -499,13 +405,6 @@ function renderAll() {
   renderPosts();
   renderProfile();
   if (user.role !== 'servant') renderAdminPanels();
-}
-
-function quickSwitchUser(id) {
-  setStore(STORE.session, { userId: id, loginAt: Date.now() });
-  resetQuizState();
-  renderAll();
-  showToast('تم تبديل الحساب (وضع تجريبي)', 'warning');
 }
 
 /* ===========================================================
@@ -569,7 +468,7 @@ function renderToday() {
   $('stats-grid').style.gridTemplateColumns = isMod ? '' : 'repeat(2, 1fr)';
   if (isMod) {
     // إجمالي الإنجاز = مهام اليوم الأربع + حل المسابقة، لكل الحسابات النشطة
-    const accs = getStore(STORE.accounts, DEFAULT_ACCOUNTS).filter(a => a.active);
+    const accs = getAccounts().filter(a => a.active);
     const solved = new Set(getStore(STORE.results, []).map(r => r.userId));
     const perMember = tasks.length + 1;
     let done = 0;
@@ -1313,18 +1212,21 @@ function renderMyResults() {
     : '<p class="results-empty">لا توجد نتائج بعد — شارك في المسابقة الأسبوعية لتظهر هنا.</p>';
 }
 
-function saveProfile() {
+async function saveProfile() {
   const user = getCurrentUser();
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  const acc = accounts.find(a => a.id === user.id);
+  if (!user) return;
   const newName = $('profile-name-input').value.trim();
   const newPass = $('profile-pass-input').value.trim();
-  if (newName) acc.name = newName;
-  if (newPass) {
-    if (newPass.length < 6) { showToast('كلمة المرور ٦ أحرف على الأقل', 'error'); return; }
-    acc.pass = newPass;
+  if (newName && newName.length < 2) { showToast('الاسم قصير جدًا', 'error'); return; }
+  if (newPass && newPass.length < 6) { showToast('كلمة المرور ٦ أحرف على الأقل', 'error'); return; }
+  if (newName && newName !== user.name) {
+    const r = await Auth.updateName(newName);
+    if (!r.ok) { showToast(r.error, 'error'); return; }
   }
-  setStore(STORE.accounts, accounts);
+  if (newPass) {
+    const r = await Auth.changePassword(newPass);
+    if (!r.ok) { renderAll(); showToast(r.error, 'error'); return; }
+  }
   $('profile-pass-input').value = '';
   renderAll();
   showToast('تم حفظ بيانات الحساب');
@@ -1359,7 +1261,7 @@ function renderAdminPanels() {
 
   const plan = getStore(STORE.plan, DEFAULT_PLAN);
   const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE);
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
+  const accounts = getAccounts();
   const progressAll = getStore(STORE.progress, {});
   const results = getStore(STORE.results, []);
   const posts = getStore(STORE.posts, DEFAULT_POSTS);
@@ -1435,27 +1337,17 @@ function renderAdminPanels() {
 
   if (user.role === 'owner') {
     $('owner-contest-json').value = JSON.stringify(getStore(STORE.contest, DEFAULT_CONTEST), null, 2);
-    $('owner-accounts-body').innerHTML = accounts.map(a => `
-      <tr>
-        <td><strong>${escapeHtml(a.name)}</strong></td>
-        <td>${escapeHtml(a.stage || '—')}</td>
-        <td style="font-family:monospace; font-size:0.75rem; direction:ltr; text-align:right;">${escapeHtml(a.email || '—')}</td>
-        <td>${roleLabel(a.role)}</td>
-        <td>${a.active ? '<span class="badge badge-green">نشط</span>' : '<span class="badge badge-red">معطل</span>'}</td>
-        <td>
-          ${a.id !== user.id ? `<button class="btn btn-outline btn-sm" onclick="toggleAccountStatus('${a.id}')">${a.active ? 'تعطيل' : 'تفعيل'}</button>` : '—'}
-        </td>
-      </tr>
-    `).join('');
   }
+  renderAccountsTable(user, accounts);
 }
 
 /* ===========================================================
    v10: أدوات جديدة
    =========================================================== */
 function fillStageSelects() {
-  const opts = '<option value="">— اختر المرحلة —</option>' + STAGES.map(s => `<option value="${s}">${s}</option>`).join('');
-  ['ca-stage', 'new-acc-stage'].forEach(id => { const el = $(id); if (el) el.innerHTML = opts; });
+  const opts = '<option value="">— اختر المرحلة —</option>' + Auth.STAGE_OPTIONS.map(s => `<option value="${s.code}">${s.label}</option>`).join('');
+  const el = $('ca-stage');
+  if (el) el.innerHTML = opts;
 }
 
 /* اسم الخادم المسجّل داخل أي رسالة له: {name} / {الاسم} تُستبدل، وإلا يُضاف الاسم في أولها */
@@ -1651,50 +1543,93 @@ function saveOwnerContestJson() {
   } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); }
 }
 
-function adminAddAccount() {
-  if (!requireRole('admin', 'owner')) return;
-  const name = $('new-acc-name').value.trim();
-  const email = $('new-acc-email').value.trim();
-  const role = $('new-acc-role').value;
-  const stage = $('new-acc-stage').value;
-  if (!name) return showToast('أدخل اسم الخادم', 'error');
-  if (role === 'servant' && !stage) return showToast('اختر مرحلة الخادم', 'error');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showToast('بريد غير صالح', 'error');
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  if (accounts.some(a => a.email.toLowerCase() === email.toLowerCase())) return showToast('البريد مسجّل بالفعل', 'error');
-  accounts.push({ id: 'u_' + Date.now(), name, email, role, stage: role === 'servant' ? stage : '', pass: '123456', active: true });
-  setStore(STORE.accounts, accounts);
-  $('new-acc-name').value = '';
-  $('new-acc-email').value = '';
-  renderAll();
-  showToast(`تم إضافة ${name} — كلمة المرور الافتراضية: 123456`);
+/* ===== v1.1: إدارة الحسابات على Supabase ===== */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function fmtLastLogin(iso) {
+  if (!iso) return 'لم يدخل بعد';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  try {
+    return d.toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch { return d.toLocaleString(); }
 }
 
-function toggleAccountStatus(id) {
-  if (!requireRole('owner')) return;
-  const accounts = getStore(STORE.accounts, DEFAULT_ACCOUNTS);
-  const acc = accounts.find(a => a.id === id);
-  if (acc) {
-    acc.active = !acc.active;
-    setStore(STORE.accounts, accounts);
-    renderAll();
-    showToast('تم تحديث حالة الحساب');
-  }
+function renderAccountsTable(user, accounts) {
+  const body = $('owner-accounts-body');
+  if (!body || !isStaffUser(user)) return;
+  const canAct = a => a.id !== user.id && !(user.role === 'admin' && a.role === 'owner');   // المسؤول لا يعدّل المالك، ولا أحد على نفسه
+  const roleSelect = a => user.role === 'owner' && a.id !== user.id
+    ? `<select class="form-control" style="margin-top:6px; padding:4px 6px; font-size:0.78rem;" onchange="changeAccountRole('${escapeHtml(a.id)}', this.value)" aria-label="تغيير الدور">
+         <option value="servant" ${a.role === 'servant' ? 'selected' : ''}>👤 خادم</option>
+         <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>🛡️ مسؤول</option>
+         <option value="owner" ${a.role === 'owner' ? 'selected' : ''}>👑 مالك</option>
+       </select>` : '';
+  body.innerHTML = accounts.length ? accounts.map(a => `
+    <tr>
+      <td><strong>${escapeHtml(a.name)}</strong><br><span style="font-size:0.72rem; color:var(--text-muted);">${roleLabel(a.role)}</span></td>
+      <td style="font-family:monospace; font-size:0.75rem; direction:ltr; text-align:right;">${escapeHtml(a.email || '—')}</td>
+      <td style="direction:ltr; text-align:right;">${escapeHtml(a.phone || '—')}</td>
+      <td>${escapeHtml(a.stage || '—')}</td>
+      <td style="font-size:0.78rem;">${escapeHtml(fmtLastLogin(a.lastLogin))}</td>
+      <td>${a.active ? '<span class="badge badge-green">نشط</span>' : '<span class="badge badge-red">معطل</span>'}</td>
+      <td>
+        ${canAct(a) ? `
+          <button class="btn btn-outline btn-sm" onclick="setAccountStatus('${escapeHtml(a.id)}', '${a.active ? 'disabled' : 'active'}')">${a.active ? 'تعطيل' : 'تفعيل'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAccountById('${escapeHtml(a.id)}')">حذف</button>
+          ${roleSelect(a)}` : '—'}
+      </td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:14px;">لا توجد حسابات لعرضها.</td></tr>';
 }
 
-function resetDemoData() {
-  if (!requireRole('owner')) return;
-  if (!confirm('هل تريد إعادة ضبط جميع بيانات التطبيق للحالة الافتراضية؟')) return;
-  Object.values(STORE).forEach(k => { try { localStorage.removeItem(k); } catch {} });
-  initApp();
-  showToast('تمت استعادة البيانات الافتراضية');
+/* تحميل قائمة الحسابات من السيرفر (للمسؤول والمالك). full=true يعيد رسم الأقسام المعتمدة عليها */
+async function refreshAccounts(full) {
+  const user = getCurrentUser();
+  if (!isStaffUser(user)) return;
+  const r = await Auth.loadAccounts();
+  if (!r.ok) { showToast(r.error || 'تعذّر تحديث قائمة الحسابات.', 'warning'); return; }
+  const now = getCurrentUser();
+  if (!now) return;
+  if (full) { renderToday(); renderAdminPanels(); }
+  else renderAccountsTable(now, getAccounts());
+}
+
+async function setAccountStatus(id, status) {
+  if (!requireRole('admin', 'owner') || !UUID_RE.test(id)) return;
+  const acc = getAccounts().find(a => a.id === id);
+  if (status === 'disabled' && !confirm(`تعطيل حساب ${acc ? acc.name : ''}؟ لن يستطيع الدخول للتطبيق حتى يُفعَّل مرة أخرى.`)) return;
+  const r = await Auth.setStatus(id, status);
+  if (!r.ok) { showToast(r.error, 'error'); return; }
+  showToast(status === 'disabled' ? 'تم تعطيل الحساب' : 'تم تفعيل الحساب');
+  refreshAccounts(false);
+}
+
+async function deleteAccountById(id) {
+  if (!requireRole('admin', 'owner') || !UUID_RE.test(id)) return;
+  const acc = getAccounts().find(a => a.id === id);
+  if (!confirm(`حذف حساب ${acc ? acc.name : ''} نهائيًّا؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
+  const r = await Auth.deleteAccount(id);
+  if (!r.ok) { showToast(r.error, 'error'); return; }
+  showToast('تم حذف الحساب');
+  refreshAccounts(true);
+}
+
+async function changeAccountRole(id, role) {
+  if (!requireRole('owner') || !UUID_RE.test(id)) return;
+  const acc = getAccounts().find(a => a.id === id);
+  if (!acc || acc.role === role) return;
+  if (!confirm(`تغيير دور ${acc.name} إلى «${roleLabel(role)}»؟`)) { refreshAccounts(false); return; }
+  const r = await Auth.setRole(id, role);
+  if (!r.ok) { showToast(r.error, 'error'); refreshAccounts(false); return; }
+  showToast('تم تغيير الدور');
+  refreshAccounts(true);
 }
 
 /* ===========================================================
    10.16 التهيئة الأولية
    =========================================================== */
 function initApp() {
-  if (!localStorage.getItem(STORE.accounts)) setStore(STORE.accounts, DEFAULT_ACCOUNTS);
   if (!localStorage.getItem(STORE.plan)) setStore(STORE.plan, DEFAULT_PLAN);
   if (!localStorage.getItem(STORE.schedule)) setStore(STORE.schedule, DEFAULT_SCHEDULE);
   if (!localStorage.getItem(STORE.contest)) setStore(STORE.contest, DEFAULT_CONTEST);
@@ -1706,14 +1641,19 @@ function initApp() {
   fillStageSelects();
   initTheme();
   initBibleSelectors();
-  renderDemoAccounts();
 
-  const session = loadSession();
-  if (session && getCurrentUser()) {
+  /* v1.1: خروج إجباري (حساب معطّل/محذوف/جلسة منتهية) وتغيّر بيانات الحساب */
+  Auth.on.forced = (msg) => logout(msg);
+  Auth.on.changed = () => { if (getCurrentUser()) renderAll(); };
+
+  const user = Auth.restore();
+  if (user) {
     enterApp();
+    Auth.verify(true);
   } else {
     loginScreen.style.display = '';
     appShell.style.display = 'none';
+    if (!Auth.configured) showToast('لم يتم ضبط الاتصال بالخادم بعد (ملف js/config.js).', 'warning');
   }
 }
 
