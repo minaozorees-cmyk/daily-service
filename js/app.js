@@ -52,18 +52,8 @@ const DEFAULT_CONTEST = [
   { q: 'في أي صلاة بالأجبية نصلي المزمور الخمسين في مقدمة كل ساعة؟', options: ['في كل الصلوات', 'باكر فقط', 'الغروب فقط', 'نصف الليل فقط'], answer: 0 }
 ];
 
-const DEFAULT_POSTS = [
-  {
-    id: 'p1', authorId: 'u2', authorName: 'بيتر سمير',
-    text: 'آية اليوم: "اثبتوا فيّ وأنا فيكم".. ربنا يبارك خدمتنا جميعاً في كنيسة العذراء ومارجرجس ببني خالد.',
-    visibility: 'public', hidden: false, likes: ['u1', 'u3'], createdAt: 'اليوم ٨:٣٠ ص'
-  },
-  {
-    id: 'p2', authorId: 'u1', authorName: 'مينا جورج',
-    text: 'ملاحظة خاصة في مخدعي: محتاج أصلي أكتر لأجل أولاد الفصل قبل تحضير الدرس.',
-    visibility: 'private', hidden: false, likes: [], createdAt: 'اليوم ٩:٠٠ ص'
-  }
-];
+/* v1.2: المشاركات من السيرفر (js/sync.js). حُذفت مشاركات النموذج التجريبي. */
+const DEFAULT_POSTS = [];
 
 /* ===========================================================
    10.2 مفاتيح التخزين
@@ -313,10 +303,18 @@ function enterApp() {
   switchTodaySub('plan');
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (isStaffUser(user)) refreshAccounts(true);
+  Sync.init();   // v1.2: ترحيل بيانات الجهاز مرة واحدة + بدء المزامنة
 }
 
-function logout(message) {
+async function logout(message) {
+  /* v1.2: نحاول رفع ما في الطابور قبل الخروج (حتى ٢٫٥ ثانية)؛ وإلا يبقى للدخول التالي لنفس الحساب */
+  try {
+    if (getCurrentUser() && Sync.pendingCount()) {
+      await Promise.race([Sync.flush(), new Promise(r => setTimeout(r, 2500))]);
+    }
+  } catch {}
   Auth.logout();
+  Sync.reset();
   appShell.style.display = 'none';
   loginScreen.style.display = '';
   emailInput.value = '';
@@ -411,8 +409,7 @@ function renderAll() {
    10.10 تبويب اليوم
    =========================================================== */
 function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  return Sync.todayKey();   // v1.2: اليوم بتوقيت القاهرة (يُضبط من السيرفر)
 }
 
 function renderToday() {
@@ -423,7 +420,7 @@ function renderToday() {
   const progressAll = getStore(STORE.progress, {});
   const userProg = progressAll[key] || { reading: false, meditation: false, prayer: false, challenge: false };
 
-  const dateLabel = new Date().toLocaleDateString('ar-EG', { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = Sync.cairoNow().toLocaleDateString('ar-EG', { weekday: 'long', month: 'short', day: 'numeric' });
   $('today-date-label').textContent = dateLabel;
   $('plan-verse-ref').textContent = plan.ref;
   $('plan-reading-title').textContent = plan.reading;
@@ -612,7 +609,7 @@ function userDayCounts(userId) {
 function computeStreaks(counts) {
   const ok = d => (counts[dayKeyOf(d)] || 0) >= STREAK_MIN_TASKS;
   let current = 0;
-  const d = new Date(); d.setHours(0, 0, 0, 0);
+  const d = Sync.cairoNow(); d.setHours(0, 0, 0, 0);
   if (!ok(d)) d.setDate(d.getDate() - 1);   // لا تنكسر السلسلة قبل انتهاء اليوم
   while (ok(d)) { current++; d.setDate(d.getDate() - 1); }
 
@@ -630,7 +627,7 @@ function badgeCount(longest) { return BADGES.filter(b => longest >= b.days).leng
 
 let calView = null;
 function calNav(delta) {
-  const now = new Date();
+  const now = Sync.cairoNow();
   const d = new Date(calView.y, calView.m + delta, 1);
   if (d > new Date(now.getFullYear(), now.getMonth(), 1)) return;
   calView = { y: d.getFullYear(), m: d.getMonth() };
@@ -650,7 +647,7 @@ function renderStreakCard() {
   if (!user || !$('cal-grid')) return;
   const counts = userDayCounts(user.id);
   const st = computeStreaks(counts);
-  const now = new Date();
+  const now = Sync.cairoNow();
   if (!calView) calView = { y: now.getFullYear(), m: now.getMonth() };
 
   $('streak-cur').textContent = st.current;
@@ -701,6 +698,7 @@ function toggleTask(taskKey) {
   renderStreakCard();
 
   const on = progressAll[key][taskKey];
+  Sync.setTask(todayKey(), taskKey, on);   // v1.2: رفع للسيرفر عبر الطابور
   const allNow = TASK_KEYS.every(t => progressAll[key][t]);
   const newBadges = badgeCount(computeStreaks(userDayCounts(user.id)).longest);
 
@@ -966,9 +964,10 @@ function submitQuiz() {
     userId: user.id, userName: user.name,
     score, total: questions.length,
     cid: contestId(), answers: { ...selectedAnswers },
-    date: new Date().toLocaleDateString('ar-EG')
+    date: Sync.cairoNow().toLocaleDateString('ar-EG'), at: Date.now()
   });
   setStore(STORE.results, results);
+  Sync.submitResult(contestId(), { ...selectedAnswers });   // v1.2: الدرجة الرسمية تُحسب في السيرفر
 
   quizReview = { score, total: questions.length, questions, answers: { ...selectedAnswers } };
   selectedAnswers = {};
@@ -1005,13 +1004,15 @@ function createPost() {
   const text = $('new-post-text').value.trim();
   if (!text) return showToast('اكتب محتوى المشاركة أولاً');
   const posts = getStore(STORE.posts, DEFAULT_POSTS);
+  const pid = Sync.uuid(), vis = $('new-post-visibility').value;
   posts.unshift({
-    id: 'p_' + Date.now(),
+    id: pid,
     authorId: user.id, authorName: user.name,
-    text, visibility: $('new-post-visibility').value,
+    text, visibility: vis,
     hidden: false, likes: [], createdAt: 'الآن'
   });
   setStore(STORE.posts, posts);
+  Sync.postNew(pid, text, vis);
   $('new-post-text').value = '';
   renderPosts();
   showToast('✨ تم حفظ المشاركة بنجاح');
@@ -1075,13 +1076,14 @@ function toggleLike(id) {
   const idx = post.likes.indexOf(user.id);
   if (idx === -1) post.likes.push(user.id); else post.likes.splice(idx, 1);
   setStore(STORE.posts, posts);
+  Sync.like(id, idx === -1);
   renderPosts();
 }
 
 function makePublic(id) {
   const posts = getStore(STORE.posts, DEFAULT_POSTS);
   const post = posts.find(p => p.id === id);
-  if (post) { post.visibility = 'public'; setStore(STORE.posts, posts); renderPosts(); showToast('تم تحويل المشاركة إلى عامة'); }
+  if (post) { post.visibility = 'public'; setStore(STORE.posts, posts); Sync.postPublish(id); renderPosts(); showToast('تم تحويل المشاركة إلى عامة'); }
 }
 
 function editPost(id) {
@@ -1092,6 +1094,7 @@ function editPost(id) {
   if (updated !== null && updated.trim() !== '') {
     post.text = updated.trim();
     setStore(STORE.posts, posts);
+    Sync.postEdit(id, post.text);
     renderPosts();
     showToast('تم تعديل المشاركة');
   }
@@ -1102,6 +1105,7 @@ function deletePost(id) {
   let posts = getStore(STORE.posts, DEFAULT_POSTS);
   posts = posts.filter(p => p.id !== id);
   setStore(STORE.posts, posts);
+  Sync.postDelete(id);
   renderPosts();
   if (getCurrentUser().role !== 'servant') renderAdminPanels();
   showToast('تم حذف المشاركة');
@@ -1113,6 +1117,7 @@ function toggleHidePost(id) {
   if (post && post.visibility === 'public') {
     post.hidden = !post.hidden;
     setStore(STORE.posts, posts);
+    Sync.postHide(id, post.hidden);
     renderPosts();
     renderAdminPanels();
     showToast(post.hidden ? 'تم إخفاء المشاركة' : 'تم إعادة إظهار المشاركة');
@@ -1138,9 +1143,19 @@ function importBackup(event) {
     try {
       const data = JSON.parse(e.target.result);
       if (Array.isArray(data.posts)) {
+        /* v1.2: المسترجَعة تُرفع للسيرفر كمشاركات خاصة باسمك (لا إعادة نشر علني ولا تفاعلات) */
+        const me = getCurrentUser();
         const existing = getStore(STORE.posts, DEFAULT_POSTS);
         const ids = new Set(existing.map(p => p.id));
-        data.posts.forEach(p => { if (!ids.has(p.id)) existing.unshift(p); });
+        data.posts.forEach(p => {
+          if (!p || typeof p.text !== 'string' || !p.text.trim()) return;
+          const pid = Sync.validPid(p.id) ? p.id : Sync.uuid();
+          if (ids.has(pid)) return;
+          const text = p.text.trim().slice(0, 4000);
+          existing.unshift({ id: pid, authorId: me.id, authorName: me.name, text, visibility: 'private', hidden: false, likes: [], createdAt: 'الآن' });
+          Sync.postNew(pid, text, 'private');
+          ids.add(pid);
+        });
         setStore(STORE.posts, existing);
         renderPosts();
         showToast('تم استرجاع المشاركات بنجاح');
@@ -1185,6 +1200,7 @@ function renderMyResults() {
     const p = pctOf(r);
     if (!(r.userId in bestBy) || p > bestBy[r.userId]) bestBy[r.userId] = p;
   });
+  Object.entries(Sync.bests()).forEach(([uid, b]) => { if (!(uid in bestBy) || b > bestBy[uid]) bestBy[uid] = b; });   // v1.2
   const bests = Object.values(bestBy);
   const rank = mine.length ? 1 + bests.filter(b => b > best).length : null;
   const medal = rank === 1 ? '🥇 ' : rank === 2 ? '🥈 ' : rank === 3 ? '🥉 ' : '';
@@ -1255,7 +1271,7 @@ function requireRole(...roles) {
   return true;
 }
 
-function renderAdminPanels() {
+function renderAdminPanels(opts) {
   const user = getCurrentUser();
   if (!user || user.role === 'servant') return;
 
@@ -1267,6 +1283,8 @@ function renderAdminPanels() {
   const posts = getStore(STORE.posts, DEFAULT_POSTS);
   const tk = todayKey();
 
+  const keepForms = !!(opts && opts.keepForms);   // v1.2: التحديث الدوري لا يمسح نصًّا قيد الكتابة
+  if (!keepForms) {
   $('admin-plan-ref').value = plan.ref;
   $('admin-plan-reading').value = plan.reading;
   $('admin-plan-meditation').value = plan.meditation;
@@ -1281,6 +1299,7 @@ function renderAdminPanels() {
   $('admin-sched-end-date').value = sched.endDate || '';
   $('admin-sched-end-time').value = sched.endTime || '';
   syncAdminPlanSelectors(plan);
+  }
 
   // متابعة الخدام: الخدام فقط (بدون المالك والمسؤول)
   const servants = accounts.filter(a => a.role === 'servant');
@@ -1335,7 +1354,7 @@ function renderAdminPanels() {
     </div>
   `).join('') : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لا توجد مشاركات عامة.</p>';
 
-  if (user.role === 'owner') {
+  if (user.role === 'owner' && !keepForms) {
     $('owner-contest-json').value = JSON.stringify(getStore(STORE.contest, DEFAULT_CONTEST), null, 2);
   }
   renderAccountsTable(user, accounts);
@@ -1473,7 +1492,7 @@ function adminLoadJson(kind, input) {
       const sel = $(kind === 'meditation' ? 'admin-med-pick' : 'admin-chal-pick');
       sel.innerHTML = entries.map((e, i) => `<option value="${i}">${escapeHtml(e.label)}</option>`).join('');
       sel.style.display = entries.length > 1 ? '' : 'none';
-      const iso = new Date(); const today = `${iso.getFullYear()}-${String(iso.getMonth() + 1).padStart(2, '0')}-${String(iso.getDate()).padStart(2, '0')}`;
+      const iso = Sync.cairoNow(); const today = `${iso.getFullYear()}-${String(iso.getMonth() + 1).padStart(2, '0')}-${String(iso.getDate()).padStart(2, '0')}`;
       const byDate = entries.findIndex(e => e.date === today);
       sel.value = String(byDate >= 0 ? byDate : 0);
       applyJsonEntry(kind, entries[byDate >= 0 ? byDate : 0]);
@@ -1499,20 +1518,34 @@ function applyJsonEntry(kind, e) {
   if (e.reading || (e.book && e.chapter)) syncAdminPlanSelectors({ reading: $('admin-plan-reading').value });
 }
 
-function saveAdminPlan() {
+/* v1.2: نشر إعداد مشترك على السيرفر (يتطلب اتصالًا). نحدّثه محليًّا أولًا ليُحسب معرّف المسابقة، ونتراجع عند الفشل */
+async function publishConfig(key, val) {
+  const prev = localStorage.getItem(STORE[key]);
+  setStore(STORE[key], val);
+  const r = await Sync.saveConfig(key, JSON.stringify(val), key === 'plan' ? null : contestId());
+  if (!r.ok) {
+    try { if (prev === null) localStorage.removeItem(STORE[key]); else localStorage.setItem(STORE[key], prev); } catch {}
+    showToast(r.error, 'error');
+    return false;
+  }
+  return true;
+}
+
+async function saveAdminPlan() {
   if (!requireRole('admin', 'owner')) return;
-  setStore(STORE.plan, {
+  const ok = await publishConfig('plan', {
     ref: $('admin-plan-ref').value,
     reading: $('admin-plan-reading').value,
     meditation: $('admin-plan-meditation').value,
     prayer: $('admin-plan-prayer').value,
     challenge: $('admin-plan-challenge').value
   });
+  if (!ok) return;
   renderToday();
   showToast('تم تحديث خطة اليوم للجميع');
 }
 
-function saveAdminSchedule() {
+async function saveAdminSchedule() {
   if (!requireRole('admin', 'owner')) return;
   const startDate = $('admin-sched-start-date').value, startTime = $('admin-sched-start-time').value;
   const endDate = $('admin-sched-end-date').value, endTime = $('admin-sched-end-time').value;
@@ -1520,27 +1553,29 @@ function saveAdminSchedule() {
     const a = new Date(`${startDate}T${startTime || '00:00'}`), b = new Date(`${endDate}T${endTime || '23:59'}`);
     if (b <= a) return showToast('نهاية المسابقة يجب أن تكون بعد بدايتها', 'error');
   }
-  setStore(STORE.schedule, {
+  const okSched = await publishConfig('schedule', {
     book: $('admin-sched-book').value,
     info: $('admin-sched-info').value,
     timer: Math.max(0, Math.min(300, parseInt($('admin-sched-timer').value, 10) || 0)),
     startDate, startTime, endDate, endTime
   });
+  if (!okSched) return;
   resetQuizState();
   renderContest();
   showToast('تم تحديث مواعيد المسابقة');
 }
 
-function saveOwnerContestJson() {
+async function saveOwnerContestJson() {
   if (!requireRole('owner')) return;
+  let parsed;
   try {
-    const parsed = JSON.parse($('owner-contest-json').value);
+    parsed = JSON.parse($('owner-contest-json').value);
     if (!Array.isArray(parsed)) throw new Error();
-    setStore(STORE.contest, parsed);
-    resetQuizState();
-    renderContest();
-    showToast('تم رفع وتحديث أسئلة المسابقة بنجاح');
-  } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); }
+  } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); return; }
+  if (!await publishConfig('contest', parsed)) return;
+  resetQuizState();
+  renderContest();
+  showToast('تم رفع وتحديث أسئلة المسابقة بنجاح');
 }
 
 /* ===== v1.1: إدارة الحسابات على Supabase ===== */
@@ -1627,13 +1662,42 @@ async function changeAccountRole(id, role) {
 }
 
 /* ===========================================================
+   v1.2: استقبال تحديثات المزامنة (js/sync.js) وإعادة الرسم دون مقاطعة المستخدم
+   =========================================================== */
+/* مسابقة قيد الحل: لا نعيد رسمها ولا نحدّث التطبيق وقتها (يستعملها js/update.js أيضًا) */
+function isQuizInProgress() {
+  return !quizDone && (quizIndex > 0 || Object.keys(selectedAnswers).length > 0);
+}
+
+function onSyncUpdated(kinds) {
+  const user = getCurrentUser();
+  if (!user) return;
+  const has = k => kinds.includes(k);
+
+  if (has('config') || has('progress') || has('results')) { renderToday(); renderStreakCard(); }
+  if (has('config') || has('results')) {
+    if (isQuizInProgress()) {
+      if (has('config')) showToast('تم تحديث المسابقة. ستظهر النسخة الجديدة بعد إنهاء الحل الحالي.', 'warning');
+    } else {
+      resetQuizState();
+      renderContest();
+    }
+    renderMyResults();
+  }
+  if (has('posts')) renderPosts();
+  if (isStaffUser(user) && (has('progress') || has('results') || has('posts') || has('accounts'))) {
+    renderAdminPanels({ keepForms: true });
+  }
+}
+
+/* ===========================================================
    10.16 التهيئة الأولية
    =========================================================== */
 function initApp() {
   if (!localStorage.getItem(STORE.plan)) setStore(STORE.plan, DEFAULT_PLAN);
   if (!localStorage.getItem(STORE.schedule)) setStore(STORE.schedule, DEFAULT_SCHEDULE);
   if (!localStorage.getItem(STORE.contest)) setStore(STORE.contest, DEFAULT_CONTEST);
-  if (!localStorage.getItem(STORE.posts)) setStore(STORE.posts, DEFAULT_POSTS);
+  if (!localStorage.getItem(STORE.posts)) setStore(STORE.posts, []);
 
   const savedFont = localStorage.getItem(STORE.fontSize);
   if (savedFont) document.documentElement.style.setProperty('--font-size-base', savedFont + 'px');
@@ -1645,6 +1709,8 @@ function initApp() {
   /* v1.1: خروج إجباري (حساب معطّل/محذوف/جلسة منتهية) وتغيّر بيانات الحساب */
   Auth.on.forced = (msg) => logout(msg);
   Auth.on.changed = () => { if (getCurrentUser()) renderAll(); };
+  Sync.on.updated = onSyncUpdated;
+  Sync.on.notice = (msg, type) => showToast(msg, type || 'warning');
 
   const user = Auth.restore();
   if (user) {

@@ -1,4 +1,4 @@
-/* الخدمة اليومية — طبقة PWA (v1.0)
+/* الخدمة اليومية — طبقة PWA (v1.2)
    ملف مستقل عمدًا: js/app.js يبقى مطابقًا بالبايت لـ v12. */
 (function () {
   'use strict';
@@ -29,12 +29,5 @@
     }
   } catch (e) { /* ثانوي */ }
 
-  /* 3) تسجيل الـService Worker (بلا تحديث تلقائي في v1.0 — انظر HANDOFF: دَين تقني لـ v1.2) */
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js', { scope: './' }).catch(function (err) {
-        console.warn('تعذّر تسجيل الـService Worker:', err);
-      });
-    });
-  }
+  /* 3) تسجيل الـService Worker والتحديث الآمن: انتقل إلى js/update.js (v1.2) */
 })();

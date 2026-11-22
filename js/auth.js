@@ -1,5 +1,5 @@
 'use strict';
-/* الخدمة اليومية v1.1 — الحسابات: Supabase Auth + جدول profiles
+/* الخدمة اليومية v1.2 — الحسابات: Supabase Auth + جدول profiles
    - يعتمد على js/supa.js. لا يعتمد على app.js (يُحمَّل قبله).
    - الواجهة القديمة متزامنة، فنحتفظ بالمستخدم الحالي في الذاكرة وفي التخزين (آخر نسخة معروفة).
    - الحماية الحقيقية في السيرفر (RLS + دوال SQL) وليست هنا. */
@@ -275,6 +275,10 @@ const Auth = (function () {
     deleteAccount: deleteAccount,
     setRole: setRole,
     updateName: updateName,
-    changePassword: changePassword
+    changePassword: changePassword,
+    /* v1.2: للمزامنة (js/sync.js) — استدعاء بتوكن صالح مع تجديد/خروج إجباري عند فقد الجلسة */
+    rpc: rpc,
+    get: function (path) { return call(function (t) { return Supa.request('GET', path, { token: t }); }); },
+    errText: msgFor
   };
 })();
