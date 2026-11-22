@@ -1,10 +1,10 @@
-/* الخدمة اليومية — Service Worker (v1.2)
+/* الخدمة اليومية — Service Worker (v1.3)
    غيّر VERSION مع كل إصدار (وفي js/version.js).
    v1.2: تحديث آمن —
    - كل ملفات الصدفة (index + css + js + manifest + أيقونات) في كاش واحد بنسخة واحدة، فلا تلتقي صفحة جديدة بملفات قديمة.
    - الـSW الجديد يُحمِّل نسخته كاملة في الخلفية ثم ينتظر. لا skipWaiting تلقائي: التفعيل بطلب من الصفحة (js/update.js)
      بعد التأكد أن لا مسابقة قيد الحل ولا بيانات غير مرفوعة. */
-const VERSION = 'v1.2';
+const VERSION = 'v1.3';
 const CACHE = 'ds-' + VERSION;
 const FONTS = 'ds-fonts-v1';              // خطوط محلية (fonts/): كاش مستقل لا يُمسح عند تغيّر VERSION
 const SCOPE = self.registration.scope;    // ينتهي بـ /
@@ -49,7 +49,7 @@ const isIndex = (req, u) =>
   req.mode === 'navigate' ||
   (u.origin === location.origin && (u.pathname === new URL(SCOPE).pathname || /\/index\.html$/.test(u.pathname)));
 
-/* cache-first من كاش النسخة الحالية (ignoreSearch يطابق ?v=1.2 مع المخزَّن) */
+/* cache-first من كاش النسخة الحالية (ignoreSearch يطابق ?v=1.3 مع المخزَّن) */
 async function fromShell(req) {
   const cache = await caches.open(CACHE);
   const hit = await cache.match(req, { ignoreSearch: true });
