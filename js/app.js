@@ -32,25 +32,10 @@ const BIBLE_DATA = {
   }
 };
 
-const DEFAULT_PLAN = {
-  ref: 'يوحنا ١٥ : ١ - ١٢',
-  reading: 'إنجيل يوحنا — الأصحاح ١٥',
-  meditation: 'الخدمة الحقيقية ليست مجرد مجهود بشري أو نشاط تنظيمي، بل هي ثمر طبيعي للثبات في المسيح الكرمة الحقيقية. كلما التصق الخادم بالمسيح في مخدعه وصلاته، فاضت النعمة من خلاله إلى مخدوميه دون عناء.',
-  prayer: 'الأجبية المقدسة — صلاة باكر (المزمور ٥٠)',
-  challenge: 'تواصل اليوم مع مخدوم غائب أو محتاج للسؤال عنه وتشجيعه بمحبة.'
-};
-
-const DEFAULT_SCHEDULE = {
-  book: 'إنجيل يوحنا (الأصحاحات ١٣ - ١٧)',
-  info: 'متاحة طوال الأسبوع — يغلق التقييم يوم الجمعة الساعة ٨ مساءً',
-  timer: 0
-};
-
-const DEFAULT_CONTEST = [
-  { q: 'من هو الكرّام في مثل الكرمة الحقيقية بإنجيل يوحنا ١٥؟', options: ['الآب السماوي', 'الرسل', 'الملائكة', 'يوحنا المعمدان'], answer: 0 },
-  { q: 'ماذا قال الرب يسوع: "بدوني لا تقدرون أن..."؟', options: ['تتكلموا', 'تفعلوا شيئاً', 'تسافروا', 'تتعلموا'], answer: 1 },
-  { q: 'في أي صلاة بالأجبية نصلي المزمور الخمسين في مقدمة كل ساعة؟', options: ['في كل الصلوات', 'باكر فقط', 'الغروب فقط', 'نصف الليل فقط'], answer: 0 }
-];
+/* v1.3: لا خطة ولا مسابقة افتراضية في الكود — كلها من السيرفر (plan_days / contests).
+   لا نعرض خطة قديمة ولا أسئلة تجريبية قبل وصول البيانات. */
+const DEFAULT_SCHEDULE = { book: '', info: '', timer: 0, none: true };
+const DEFAULT_CONTEST = [];
 
 /* v1.2: المشاركات من السيرفر (js/sync.js). حُذفت مشاركات النموذج التجريبي. */
 const DEFAULT_POSTS = [];
@@ -59,7 +44,7 @@ const DEFAULT_POSTS = [];
    10.2 مفاتيح التخزين
    =========================================================== */
 const STORE = {
-  plan: 'ds_v2_plan',
+  plan13: 'ds_v2_plan_v13',   // v1.3: {day, next, plan} من plan_get_today (ds_v2_plan القديم لم يعد يُقرأ)
   schedule: 'ds_v2_schedule',
   contest: 'ds_v2_contest',
   progress: 'ds_v2_progress',
@@ -314,6 +299,7 @@ async function logout(message) {
     }
   } catch {}
   Auth.logout();
+  quizUnlock = null;
   Sync.reset();
   appShell.style.display = 'none';
   loginScreen.style.display = '';
@@ -373,6 +359,8 @@ function switchAdminSub(panel, btn) {
   document.querySelectorAll('#admin-sub-nav .sub-btn').forEach(b => b.classList.remove('active'));
   $('admin-sub-' + panel).style.display = 'block';
   btn.classList.add('active');
+  if (panel === 'books') renderAdminBooks();
+  if (panel === 'unlock') renderAdminUnlock();
 }
 
 /* ===========================================================
@@ -412,10 +400,43 @@ function todayKey() {
   return Sync.todayKey();   // v1.2: اليوم بتوقيت القاهرة (يُضبط من السيرفر)
 }
 
+const toAr = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const pad2 = n => (n < 10 ? '0' : '') + n;
+/* اليوم بتوقيت القاهرة بصيغة YYYY-MM-DD (todayKey بلا أصفار) */
+function todayIso() { const a = todayKey().split('-').map(Number); return `${a[0]}-${pad2(a[1])}-${pad2(a[2])}`; }
+function fmtLongDate(iso) {
+  const a = String(iso).slice(0, 10).split('-').map(Number);
+  if (a.length !== 3 || a.some(isNaN)) return '';
+  return new Date(a[0], a[1] - 1, a[2]).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+/* v1.3: تحويل صف plan_days إلى الشكل الذي تعرضه الواجهة. العنوان والشاهد يُشتقّان من book_id + القسم + الآيات (لا نص حر). */
+function planView(p) {
+  if (!p) return null;
+  const title = p.book_title || '';
+  const short = p.book_short || title.replace(/^(إنجيل|سفر|رسالة)\s+(معلمنا\s+)?/, '');
+  const sec = p.section ? ` ${toAr(p.section)}` : '';
+  const verses = p.verse_from ? ` : ${toAr(p.verse_from)}${p.verse_to && p.verse_to !== p.verse_from ? ' - ' + toAr(p.verse_to) : ''}` : '';
+  return {
+    reading: title ? title + (p.section ? ` — الأصحاح ${toAr(p.section)}` : '') : '',
+    ref: title ? `${short}${sec}${verses}` : '',
+    meditation: p.meditation || '', prayer: p.prayer || '', challenge: p.challenge || ''
+  };
+}
+
+/* حالة خطة اليوم: ok (توجد) | none (لا توجد لليوم) | stale (لم تُحمَّل خطة هذا اليوم بعد — مثلًا الجهاز أوفلاين منذ أمس) */
+function todayPlanState() {
+  const rec = getStore(STORE.plan13, null);
+  if (!rec || rec.day !== todayIso()) return { state: 'stale' };
+  if (!rec.plan) return { state: 'none', next: rec.next || null };
+  return { state: 'ok', plan: planView(rec.plan) };
+}
+
 function renderToday() {
   const user = getCurrentUser();
   if (!user) return;
-  const plan = getStore(STORE.plan, DEFAULT_PLAN);
+  const ps = todayPlanState();
+  const plan = ps.state === 'ok' ? ps.plan : { ref: '', reading: '', meditation: '', prayer: '', challenge: '' };
   const key = `${user.id}:${todayKey()}`;
   const progressAll = getStore(STORE.progress, {});
   const userProg = progressAll[key] || { reading: false, meditation: false, prayer: false, challenge: false };
@@ -423,13 +444,25 @@ function renderToday() {
   const dateLabel = Sync.cairoNow().toLocaleDateString('ar-EG', { weekday: 'long', month: 'short', day: 'numeric' });
   $('today-date-label').textContent = dateLabel;
   $('plan-verse-ref').textContent = plan.ref;
-  $('plan-reading-title').textContent = plan.reading;
+  $('plan-verse-ref').style.display = plan.ref ? '' : 'none';
+  $('plan-reading-title').textContent = plan.reading || 'بلا قراءة محددة لهذا اليوم';
   const medText = personalize(plan.meditation, user);
   $('plan-meditation-preview').textContent = medText.length > 46 ? medText.slice(0, 46) + '...' : medText;
   $('full-meditation-text').textContent = medText;
-  $('plan-prayer-title').textContent = plan.prayer;
+  $('plan-prayer-title').textContent = plan.prayer || '—';
   $('plan-challenge-title').textContent = personalize(plan.challenge, user, true);
-  renderTaskPanels(plan);
+
+  /* v1.3: لا خطة لليوم ⇒ لا نعرض خطة أمس. رسالة + أقرب يوم قادم له خطة */
+  const noPlan = $('no-plan-box');
+  const hasPlan = ps.state === 'ok';
+  document.querySelectorAll('#tab-today .task-block, #task-row-challenge').forEach(el => { el.style.display = hasPlan ? '' : 'none'; });
+  if (noPlan) {
+    noPlan.style.display = hasPlan ? 'none' : '';
+    noPlan.textContent = ps.state === 'none'
+      ? (ps.next ? `لا توجد خطة اليوم، الخطة القادمة تبدأ يوم ${fmtLongDate(ps.next)}.` : 'لا توجد خطة اليوم، ولم تُحدَّد خطة قادمة بعد.')
+      : ps.state === 'stale' ? 'لم تُحمَّل خطة اليوم بعد. اتصل بالإنترنت مرة واحدة لتحميلها.' : '';
+  }
+  if (hasPlan) renderTaskPanels(plan);
 
   const tasks = ['reading', 'meditation', 'prayer', 'challenge'];
   let doneCount = 0;
@@ -530,8 +563,10 @@ function renderTaskPanels(plan) {
   const openLink = (fn, label) => `<div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="${fn}()">${label}</button></div>`;
 
   // القراءة
-  const m = findPlanReading(plan.reading);
-  $('task-reading-content').innerHTML = m
+  const m = plan.reading ? findPlanReading(plan.reading) : null;
+  $('task-reading-content').innerHTML = !plan.reading
+    ? `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8;">لا توجد قراءة محددة لهذا اليوم.</p>` + openLink('openBible', '📖 فتح قسم القراءة')
+    : m
     ? `<div style="font-weight:800; color:var(--primary); margin-bottom:10px;">${escapeHtml(m.book)} — ${escapeHtml(m.chapter)}</div>
        <div class="scripture-text">${versesHtml(BIBLE_DATA[m.book][m.chapter])}</div>` + openLink('openBible', '📖 فتح في قسم القراءة')
     : `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8;">نص «${escapeHtml(plan.reading)}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.</p>` + openLink('openBible', '📖 فتح قسم القراءة');
@@ -778,6 +813,22 @@ let quizTimerId = null;
 
 function clearQuizTimer() { if (quizTimerId) { clearInterval(quizTimerId); quizTimerId = null; } }
 
+/* v1.3: كود الفتح الذي أدخله الخادم (يبقى مع تحديثات المزامنة، ويسقط لو تغيّرت المسابقة أو بعد التسليم) */
+let quizUnlock = null;   // { code, cid }
+function activeUnlock() { return quizUnlock && quizUnlock.cid === contestId() ? quizUnlock : null; }
+
+/* نافذة المسابقة بوقت السيرفر (الفرق محفوظ في Sync): none | not_started | open | ended. الحماية الحقيقية في submit_result. */
+function contestWindow() {
+  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || {};
+  if (sched.none || !Sync.serverCid()) return { state: 'none' };
+  const now = Sync.nowMs();
+  const st = sched.startsAt ? Date.parse(sched.startsAt) : NaN;
+  const en = sched.endsAt ? Date.parse(sched.endsAt) : NaN;
+  if (!isNaN(st) && now < st) return { state: 'not_started', sched };
+  if (!isNaN(en) && now >= en) return { state: 'ended', sched };
+  return { state: 'open', sched };
+}
+
 function resetQuizState() {
   clearQuizTimer();
   selectedAnswers = {};
@@ -795,20 +846,26 @@ function quizTimerSeconds() {
 }
 
 function renderContest() {
-  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE);
-  $('contest-book-badge').textContent = sched.book;
-  $('contest-schedule-info').textContent = sched.info;
+  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE;
+  $('contest-book-badge').textContent = sched.book || '—';
+  $('contest-schedule-info').textContent = sched.info || '';
   renderScheduleNote(sched);
   renderQuiz();
 }
 
-/* معرّف المسابقة الحالية: يتغير فقط عند تغيير الأسئلة أو السفر، فتُفتح محاولة جديدة لمسابقة جديدة */
-function contestId() {
-  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || {};
-  const str = JSON.stringify(getStore(STORE.contest, DEFAULT_CONTEST)) + '|' + (sched.book || '');
+/* معرّف المسابقة: دالة التجزئة نفسها من v1.0 (لا تتغير). تُحسب من الأسئلة + نص «سفر المسابقة». */
+function contestIdFor(questions, label) {
+  const str = JSON.stringify(questions) + '|' + (label || '');
   let h = 5381;
   for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
   return 'c' + (h >>> 0).toString(36);
+}
+/* المسابقة الحالية: المعرّف المخزَّن في السيرفر هو المرجع (الأسئلة لا تصل الخادم قبل البداية، فلا نحسبه محليًّا إلا عند غيابه) */
+function contestId() {
+  const sc = Sync.serverCid();
+  if (sc) return sc;
+  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || {};
+  return contestIdFor(getStore(STORE.contest, DEFAULT_CONTEST), sched.book);
 }
 
 /* أول محاولة مسجلة للمستخدم في المسابقة الحالية (أو undefined) */
@@ -822,19 +879,28 @@ function renderQuiz() {
   const questions = getStore(STORE.contest, DEFAULT_CONTEST);
   const n = questions.length;
   const box = $('quiz-container');
+  const win = contestWindow();
+  const unlock = activeUnlock();
+  const user = getCurrentUser();
+  const prev = user && firstAttempt(user);
 
-  if (!n) { box.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد أسئلة حالياً.</p>'; return; }
-  if (!quizDone) {
-    const user = getCurrentUser();
-    const prev = user && firstAttempt(user);
-    if (prev) {
-      quizReview = prev.answers
-        ? { score: prev.score, total: prev.total, questions, answers: prev.answers }
-        : null;
-      quizDone = true;
-    }
+  if (win.state === 'none') { box.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد مسابقة حالياً.</p>'; return; }
+  if (!quizDone && !unlock && prev) {
+    quizReview = prev.answers
+      ? { score: prev.score, total: prev.total, questions, answers: prev.answers }
+      : null;
+    quizDone = true;
   }
-  if (quizDone) { renderQuizReview(box); return; }
+  if (quizDone) { renderQuizReview(box); box.insertAdjacentHTML('beforeend', unlockBoxHtml()); return; }
+  /* v1.3: المسابقة مقفولة (لم تبدأ/انتهت) ولا يملك الخادم كود فتح ⇒ بطاقة إغلاق + خانة الكود */
+  if (!unlock && win.state !== 'open') {
+    const when = win.state === 'not_started' ? fmtSchedDate(win.sched.startDate, win.sched.startTime) : fmtSchedDate(win.sched.endDate, win.sched.endTime);
+    box.innerHTML = `<div class="quiz-card" style="text-align:center;"><div style="font-size:2.2rem;">${win.state === 'not_started' ? '⏳' : '🔒'}</div>
+      <div class="quiz-q" style="margin:8px 0 6px;">${win.state === 'not_started' ? 'لم تبدأ المسابقة بعد' : 'انتهى وقت المسابقة'}</div>
+      ${when ? `<div style="font-size:0.84rem; color:var(--text-muted);">${win.state === 'not_started' ? 'تبدأ' : 'انتهت'}: ${escapeHtml(when)}</div>` : ''}</div>` + unlockBoxHtml();
+    return;
+  }
+  if (!n) { box.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد أسئلة حالياً.</p>'; return; }
 
   const secs = quizTimerSeconds();
   if (quizIndex > n) quizIndex = n;
@@ -867,6 +933,36 @@ function renderQuiz() {
         <button class="btn btn-gold" style="width:100%;" onclick="submitQuiz()">🏁 إرسال الإجابات وحساب الدرجة</button>
       </div>`;
   }
+}
+
+/* v1.3: خانة كود الفتح (يولّده المسؤول/المالك لخادم معيّن؛ يسمح بمحاولة إضافية أو بالحل بعد انتهاء الوقت) */
+function unlockBoxHtml() {
+  return `<div class="ds13-unlock">
+      <div class="json-hint" style="margin:0 0 6px;">🔑 معك كود فتح من المسؤول؟ اكتبه هنا لإعادة المحاولة أو للحل بعد انتهاء الوقت.</div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="quiz-unlock-code" class="form-control" dir="ltr" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" />
+        <button class="btn btn-outline btn-sm" id="quiz-unlock-btn" onclick="redeemUnlock()">فتح</button>
+      </div></div>`;
+}
+
+async function redeemUnlock() {
+  const inp = $('quiz-unlock-code'), btn = $('quiz-unlock-btn');
+  if (!inp || !getCurrentUser()) return;
+  const code = inp.value.toUpperCase().replace(/[^0-9A-F]/g, '');
+  if (code.length !== 10) return showToast('الكود مكوّن من ١٠ حروف وأرقام (A-F و 0-9)', 'error');
+  if (btn) btn.disabled = true;
+  const r = await Sync.call('check_unlock_code', { p_code: code });
+  if (btn) btn.disabled = false;
+  if (!r.ok) return showToast(r.error, 'error');
+  if (!r.data || !r.data.ok) {
+    const why = r.data && r.data.reason;
+    return showToast(why === 'USED' ? 'هذا الكود استُعمل من قبل' : why === 'EXPIRED' ? 'انتهت مدة هذا الكود، اطلب كودًا جديدًا' : 'كود غير صحيح لهذه المسابقة', 'error');
+  }
+  quizUnlock = { code, cid: contestId() };
+  clearQuizTimer();
+  selectedAnswers = {}; quizIndex = 0; quizDone = false; quizBusy = false; quizReview = null;
+  renderQuiz();
+  showToast('تم فتح المسابقة لك. يمكنك الحل الآن 🔓', 'success');
 }
 
 function startQuizTimer(qIdx, secs) {
@@ -903,7 +999,7 @@ function renderQuizReview(box) {
   const summary = `<div class="quiz-summary">
       <div class="quiz-summary-score">${r.score}<small> / ${r.total}</small></div>
       <div class="quiz-summary-msg">${msg}</div>
-      <div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">تُحتسب المحاولة الأولى فقط</div>
+      <div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">لإعادة المحاولة اطلب كود فتح من المسؤول</div>
       <div class="quiz-nav" style="justify-content:center;">
         <button class="btn btn-gold btn-sm" onclick="switchTab('profile')">🏆 نتائجي في حسابي</button>
       </div>
@@ -951,7 +1047,9 @@ function submitQuiz() {
   const user = getCurrentUser();
   if (!user) return;
   clearQuizTimer();
-  if (firstAttempt(user)) { renderContest(); return; }
+  const unlock = activeUnlock();
+  if (firstAttempt(user) && !unlock) { renderContest(); return; }
+  if (!unlock && contestWindow().state !== 'open') { showToast('⏰ المسابقة مغلقة الآن', 'warning'); renderContest(); return; }
   const questions = getStore(STORE.contest, DEFAULT_CONTEST);
   const answered = Object.keys(selectedAnswers).length;
   if (!quizTimerSeconds() && answered < questions.length) { showToast('⚠️ برجاء الإجابة على جميع الأسئلة أولاً'); return; }
@@ -960,14 +1058,19 @@ function submitQuiz() {
   questions.forEach((q, idx) => { if (selectedAnswers[idx] === q.answer) score++; });
 
   const results = getStore(STORE.results, []);
-  results.push({
+  const cidNow = contestId();
+  const prevIdx = results.findIndex(r => r.userId === user.id && r.cid === cidNow);
+  const prevRec = prevIdx > -1 ? results[prevIdx] : null;   // v1.3: إعادة بكود تحلّ محل المحاولة المحلية، ونحتفظ بالقديمة للتراجع لو رُفضت
+  const rec = {
     userId: user.id, userName: user.name,
     score, total: questions.length,
-    cid: contestId(), answers: { ...selectedAnswers },
+    cid: cidNow, answers: { ...selectedAnswers },
     date: Sync.cairoNow().toLocaleDateString('ar-EG'), at: Date.now()
-  });
+  };
+  if (prevIdx > -1) results[prevIdx] = rec; else results.push(rec);
   setStore(STORE.results, results);
-  Sync.submitResult(contestId(), { ...selectedAnswers });   // v1.2: الدرجة الرسمية تُحسب في السيرفر
+  Sync.submitResult(cidNow, { ...selectedAnswers }, unlock ? unlock.code : null, prevRec);   // الدرجة الرسمية تُحسب في السيرفر
+  quizUnlock = null;
 
   quizReview = { score, total: questions.length, questions, answers: { ...selectedAnswers } };
   selectedAnswers = {};
@@ -1275,8 +1378,7 @@ function renderAdminPanels(opts) {
   const user = getCurrentUser();
   if (!user || user.role === 'servant') return;
 
-  const plan = getStore(STORE.plan, DEFAULT_PLAN);
-  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE);
+  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE;
   const accounts = getAccounts();
   const progressAll = getStore(STORE.progress, {});
   const results = getStore(STORE.results, []);
@@ -1285,20 +1387,8 @@ function renderAdminPanels(opts) {
 
   const keepForms = !!(opts && opts.keepForms);   // v1.2: التحديث الدوري لا يمسح نصًّا قيد الكتابة
   if (!keepForms) {
-  $('admin-plan-ref').value = plan.ref;
-  $('admin-plan-reading').value = plan.reading;
-  $('admin-plan-meditation').value = plan.meditation;
-  $('admin-plan-prayer').value = plan.prayer;
-  $('admin-plan-challenge').value = plan.challenge;
-
-  $('admin-sched-book').value = sched.book;
-  $('admin-sched-info').value = sched.info;
-  $('admin-sched-timer').value = sched.timer || 0;
-  $('admin-sched-start-date').value = sched.startDate || '';
-  $('admin-sched-start-time').value = sched.startTime || '';
-  $('admin-sched-end-date').value = sched.endDate || '';
-  $('admin-sched-end-time').value = sched.endTime || '';
-  syncAdminPlanSelectors(plan);
+    fillAdminSchedForm(sched);
+    adminInitPlanForm();
   }
 
   // متابعة الخدام: الخدام فقط (بدون المالك والمسؤول)
@@ -1398,43 +1488,72 @@ function renderScheduleNote(sched) {
   box.style.display = '';
 }
 
-/* --- اختيار السفر من ملف القراءة (BIBLE_DATA) --- */
-const ADMIN_MANUAL = '__manual__';
+/* --- v1.3: الخطة لكل يوم (اختيار تاريخ، والافتراضي اليوم). السفر من جدول books وليس من نص حر --- */
+function adminBibleBooks() { return Sync.books().filter(b => b.kind === 'bible' && b.active !== false); }
 
-function adminBookOptions() {
-  return Object.keys(BIBLE_DATA).filter(b => b !== AGPEYA_KEY);
+function fillAdminBookSelect(sel, selected, emptyLabel) {
+  const books = adminBibleBooks();
+  sel.innerHTML = `<option value="">${emptyLabel}</option>` + books.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title)}</option>`).join('');
+  sel.value = books.some(b => b.id === selected) ? selected : '';
 }
 
-function fillAdminChapters(book, selected) {
-  const chapters = Object.keys(BIBLE_DATA[book] || {});
-  $('admin-plan-chapter').innerHTML = chapters.map(c => `<option value="${c}">${c}</option>`).join('');
-  if (selected && chapters.includes(selected)) $('admin-plan-chapter').value = selected;
+function fillAdminChapters(bookId, selected) {
+  const sel = $('admin-plan-chapter');
+  const b = adminBibleBooks().find(x => x.id === bookId);
+  const n = b ? b.sections : 0;
+  let html = '';
+  for (let i = 1; i <= n; i++) html += `<option value="${i}">الأصحاح ${toAr(i)}</option>`;
+  sel.innerHTML = html;
+  sel.disabled = !n;
+  if (selected && selected >= 1 && selected <= n) sel.value = String(selected);
 }
 
-function syncAdminPlanSelectors(plan) {
-  const bookSel = $('admin-plan-book');
-  bookSel.innerHTML = adminBookOptions().map(b => `<option value="${b}">${b}</option>`).join('')
-    + `<option value="${ADMIN_MANUAL}">✏️ كتابة يدوية</option>`;
-  const m = findPlanReading(plan.reading);
-  if (m) { bookSel.value = m.book; fillAdminChapters(m.book, m.chapter); }
-  else { bookSel.value = ADMIN_MANUAL; fillAdminChapters(ADMIN_MANUAL); }
+function adminPlanPreview() {
+  const bookId = $('admin-plan-book').value;
+  const b = adminBibleBooks().find(x => x.id === bookId);
+  const out = $('admin-plan-ref-preview');
+  if (!b) { out.textContent = 'بلا قراءة لهذا اليوم.'; return; }
+  const vf = parseInt($('admin-plan-vfrom').value, 10) || null, vt = parseInt($('admin-plan-vto').value, 10) || null;
+  const v = planView({ book_title: b.title, book_short: b.short_title, section: parseInt($('admin-plan-chapter').value, 10) || null, verse_from: vf, verse_to: vt });
+  out.textContent = `سيظهر للخدام: ${v.reading} — الشاهد: ${v.ref}`;
+}
+
+let adminPlanLoadedFor = null, adminPlanReq = 0;
+function adminInitPlanForm() {
+  const inp = $('admin-plan-date');
+  if (!inp.value) inp.value = todayIso();   // الافتراضي: النهارده
+  fillAdminBookSelect($('admin-plan-book'), $('admin-plan-book').value, '— بلا قراءة —');
+  if (adminPlanLoadedFor !== inp.value) adminLoadPlanDay();
+  else { fillAdminChapters($('admin-plan-book').value, parseInt($('admin-plan-chapter').value, 10) || null); adminPlanPreview(); }
+}
+
+function adminPlanDateChanged() { adminPlanLoadedFor = null; adminLoadPlanDay(); }
+
+async function adminLoadPlanDay() {
+  const day = $('admin-plan-date').value;
+  const hint = $('admin-plan-date-hint');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { hint.textContent = 'اختر تاريخًا.'; return; }
+  const token = ++adminPlanReq;   // حماية التسابق: لو بدّل المسؤول التاريخ بسرعة يُهمَل الرد القديم
+  hint.textContent = 'جارٍ التحميل…';
+  const r = await Sync.call('plan_get', { p_day: day });
+  if (token !== adminPlanReq || $('admin-plan-date').value !== day) return;
+  if (!r.ok) { hint.textContent = r.error; return; }
+  adminPlanLoadedFor = day;
+  const p = r.data && r.data.plan;
+  fillAdminBookSelect($('admin-plan-book'), p ? p.book_id : '', '— بلا قراءة —');
+  fillAdminChapters($('admin-plan-book').value, p ? p.section : null);
+  $('admin-plan-vfrom').value = p && p.verse_from ? p.verse_from : '';
+  $('admin-plan-vto').value = p && p.verse_to ? p.verse_to : '';
+  $('admin-plan-meditation').value = p ? p.meditation : '';
+  $('admin-plan-prayer').value = p ? p.prayer : '';
+  $('admin-plan-challenge').value = p ? p.challenge : '';
+  hint.textContent = (p ? '✅ توجد خطة محفوظة ليوم ' : 'لا توجد خطة ليوم ') + fmtLongDate(day) + (p ? '.' : ' بعد.');
+  adminPlanPreview();
 }
 
 function adminPlanBookChanged() {
-  const book = $('admin-plan-book').value;
-  fillAdminChapters(book);
-  adminPlanChapterChanged();
-}
-
-function adminPlanChapterChanged() {
-  const book = $('admin-plan-book').value, ch = $('admin-plan-chapter').value;
-  if (book === ADMIN_MANUAL || !ch) return;
-  const verses = (BIBLE_DATA[book] || {})[ch] || [];
-  const short = book.replace(/^(إنجيل|سفر|رسالة)\s+(معلمنا\s+)?/, '');
-  const num = ch.replace(/^الأصحاح\s*/, '');
-  const toAr = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
-  $('admin-plan-reading').value = `${book} — ${ch}`;
-  $('admin-plan-ref').value = `${short} ${num}` + (verses.length ? ` : ١ - ${toAr(verses.length)}` : '');
+  fillAdminChapters($('admin-plan-book').value, null);
+  adminPlanPreview();
 }
 
 /* --- رفع JSON للتأمل والخدمة العملية --- */
@@ -1492,11 +1611,11 @@ function adminLoadJson(kind, input) {
       const sel = $(kind === 'meditation' ? 'admin-med-pick' : 'admin-chal-pick');
       sel.innerHTML = entries.map((e, i) => `<option value="${i}">${escapeHtml(e.label)}</option>`).join('');
       sel.style.display = entries.length > 1 ? '' : 'none';
-      const iso = Sync.cairoNow(); const today = `${iso.getFullYear()}-${String(iso.getMonth() + 1).padStart(2, '0')}-${String(iso.getDate()).padStart(2, '0')}`;
+      const today = $('admin-plan-date').value || todayIso();   // v1.3: نختار مدخل اليوم المحدد في اختيار التاريخ
       const byDate = entries.findIndex(e => e.date === today);
       sel.value = String(byDate >= 0 ? byDate : 0);
       applyJsonEntry(kind, entries[byDate >= 0 ? byDate : 0]);
-      showToast(`تم تحميل ${entries.length} ${kind === 'meditation' ? 'تأمل' : 'خدمة'} — اضغط «حفظ وتعميم الخطة» للتطبيق`, 'success');
+      showToast(`تم تحميل ${entries.length} ${kind === 'meditation' ? 'تأمل' : 'خدمة'} — اضغط «حفظ خطة اليوم» للتطبيق`, 'success');
     } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); }
     input.value = '';
   };
@@ -1512,57 +1631,92 @@ function adminPickJson(kind) {
 function applyJsonEntry(kind, e) {
   if (kind === 'challenge') { $('admin-plan-challenge').value = e.text; return; }
   $('admin-plan-meditation').value = (e.verse ? `«${e.verse}»\n\n` : '') + e.text;
-  if (e.ref) $('admin-plan-ref').value = e.ref;
-  if (e.reading) $('admin-plan-reading').value = e.reading;
-  else if (e.book && e.chapter) $('admin-plan-reading').value = `${e.book} — ${e.chapter}`;
-  if (e.reading || (e.book && e.chapter)) syncAdminPlanSelectors({ reading: $('admin-plan-reading').value });
 }
 
-/* v1.2: نشر إعداد مشترك على السيرفر (يتطلب اتصالًا). نحدّثه محليًّا أولًا ليُحسب معرّف المسابقة، ونتراجع عند الفشل */
-async function publishConfig(key, val) {
-  const prev = localStorage.getItem(STORE[key]);
-  setStore(STORE[key], val);
-  const r = await Sync.saveConfig(key, JSON.stringify(val), key === 'plan' ? null : contestId());
-  if (!r.ok) {
-    try { if (prev === null) localStorage.removeItem(STORE[key]); else localStorage.setItem(STORE[key], prev); } catch {}
-    showToast(r.error, 'error');
-    return false;
-  }
-  return true;
-}
+/* v1.3: بعد أي حفظ ناجح نسحب فورًا ليظهر على هذا الجهاز كما يراه الآخرون */
+function adminAfterSave() { try { Sync.pull(); } catch (e) {} }
 
 async function saveAdminPlan() {
   if (!requireRole('admin', 'owner')) return;
-  const ok = await publishConfig('plan', {
-    ref: $('admin-plan-ref').value,
-    reading: $('admin-plan-reading').value,
-    meditation: $('admin-plan-meditation').value,
-    prayer: $('admin-plan-prayer').value,
-    challenge: $('admin-plan-challenge').value
+  const day = $('admin-plan-date').value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return showToast('اختر تاريخ الخطة أولًا', 'error');
+  const book = $('admin-plan-book').value || null;
+  const sec = book ? (parseInt($('admin-plan-chapter').value, 10) || null) : null;
+  const vf = book && $('admin-plan-vfrom').value ? parseInt($('admin-plan-vfrom').value, 10) : null;
+  const vt = book && $('admin-plan-vto').value ? parseInt($('admin-plan-vto').value, 10) : null;
+  if ((vf || vt) && !sec) return showToast('اختر الأصحاح قبل تحديد الآيات', 'error');
+  if (vf && vt && vt < vf) return showToast('آية النهاية يجب أن تكون بعد آية البداية', 'error');
+  const r = await Sync.call('admin_save_plan', {
+    p_day: day, p_book_id: book, p_section: sec, p_verse_from: vf, p_verse_to: vt,
+    p_meditation: $('admin-plan-meditation').value, p_prayer: $('admin-plan-prayer').value, p_challenge: $('admin-plan-challenge').value
   });
-  if (!ok) return;
-  renderToday();
-  showToast('تم تحديث خطة اليوم للجميع');
+  if (!r.ok) return showToast(r.error, 'error');
+  adminPlanLoadedFor = day;
+  $('admin-plan-date-hint').textContent = '✅ توجد خطة محفوظة ليوم ' + fmtLongDate(day) + '.';
+  showToast(`تم حفظ خطة ${fmtLongDate(day)}`);
+  const w = r.data && r.data.warning;
+  if (w === 'SECTION_OPENS_LATER') showToast('⚠️ هذا الأصحاح يُفتح بعد هذا اليوم حسب جدول الأسفار. تم الحفظ.', 'warning');
+  if (w === 'SECTION_NOT_SCHEDULED') showToast('⚠️ هذا الأصحاح ليس له موعد فتح في جدول السفر. تم الحفظ.', 'warning');
+  adminAfterSave();
+}
+
+async function deleteAdminPlan() {
+  if (!requireRole('admin', 'owner')) return;
+  const day = $('admin-plan-date').value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+  if (!confirm(`حذف خطة ${fmtLongDate(day)}؟`)) return;
+  const r = await Sync.call('admin_delete_plan', { p_day: day });
+  if (!r.ok) return showToast(r.error, 'error');
+  adminPlanLoadedFor = null;
+  await adminLoadPlanDay();
+  showToast('تم حذف خطة اليوم المحدد');
+  adminAfterSave();
+}
+
+/* --- مواعيد المسابقة: تُفرض في السيرفر (submit_result يرفض خارج النافذة إلا بكود فتح). كل الأوقات بتوقيت القاهرة --- */
+function fillAdminSchedForm(sched) {
+  fillAdminBookSelect($('admin-sched-book-id'), sched.bookId || '', '— غير محدد —');
+  $('admin-sched-book').value = sched.book || '';
+  $('admin-sched-info').value = sched.info || '';
+  $('admin-sched-timer').value = sched.timer || 0;
+  $('admin-sched-start-date').value = sched.startDate || '';
+  $('admin-sched-start-time').value = sched.startTime || '';
+  $('admin-sched-end-date').value = sched.endDate || '';
+  $('admin-sched-end-time').value = sched.endTime || '';
+}
+
+function adminSchedBookChanged() {
+  const id = $('admin-sched-book-id').value;
+  const b = adminBibleBooks().find(x => x.id === id);
+  if (b && !$('admin-sched-book').value.trim()) $('admin-sched-book').value = b.title;
+}
+
+function schedTimes(sched) {
+  return {
+    starts: sched.startDate ? `${sched.startDate}T${sched.startTime || '00:00'}` : null,
+    ends: sched.endDate ? `${sched.endDate}T${sched.endTime || '23:59'}` : null
+  };
 }
 
 async function saveAdminSchedule() {
   if (!requireRole('admin', 'owner')) return;
   const startDate = $('admin-sched-start-date').value, startTime = $('admin-sched-start-time').value;
   const endDate = $('admin-sched-end-date').value, endTime = $('admin-sched-end-time').value;
-  if (startDate && endDate) {
-    const a = new Date(`${startDate}T${startTime || '00:00'}`), b = new Date(`${endDate}T${endTime || '23:59'}`);
-    if (b <= a) return showToast('نهاية المسابقة يجب أن تكون بعد بدايتها', 'error');
-  }
-  const okSched = await publishConfig('schedule', {
-    book: $('admin-sched-book').value,
-    info: $('admin-sched-info').value,
-    timer: Math.max(0, Math.min(300, parseInt($('admin-sched-timer').value, 10) || 0)),
-    startDate, startTime, endDate, endTime
+  const t = schedTimes({ startDate, startTime, endDate, endTime });
+  if (t.starts && t.ends && t.ends <= t.starts) return showToast('نهاية المسابقة يجب أن تكون بعد بدايتها', 'error');
+  const baseCid = Sync.serverCid();
+  if (!baseCid) return showToast('لا توجد مسابقة حالية. ارفع الأسئلة أولًا (المالك).', 'error');
+  const label = $('admin-sched-book').value.trim();
+  const questions = getStore(STORE.contest, DEFAULT_CONTEST);
+  const r = await Sync.call('admin_save_contest', {
+    p_cid: contestIdFor(questions, label), p_book_id: $('admin-sched-book-id').value || null, p_book_label: label,
+    p_info: $('admin-sched-info').value.trim(), p_timer: Math.max(0, Math.min(300, parseInt($('admin-sched-timer').value, 10) || 0)),
+    p_starts: t.starts, p_ends: t.ends, p_questions: null, p_base_cid: baseCid
   });
-  if (!okSched) return;
+  if (!r.ok) return showToast(r.error, 'error');
   resetQuizState();
-  renderContest();
   showToast('تم تحديث مواعيد المسابقة');
+  adminAfterSave();
 }
 
 async function saveOwnerContestJson() {
@@ -1572,10 +1726,183 @@ async function saveOwnerContestJson() {
     parsed = JSON.parse($('owner-contest-json').value);
     if (!Array.isArray(parsed)) throw new Error();
   } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); return; }
-  if (!await publishConfig('contest', parsed)) return;
+  const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE;
+  const t = schedTimes(sched);
+  const label = sched.book || '';
+  const r = await Sync.call('admin_save_contest', {
+    p_cid: contestIdFor(parsed, label), p_book_id: sched.bookId || null, p_book_label: label,
+    p_info: sched.info || '', p_timer: Number(sched.timer) || 0, p_starts: t.starts, p_ends: t.ends,
+    p_questions: JSON.stringify(parsed), p_base_cid: null
+  });
+  if (!r.ok) return showToast(r.error, 'error');
   resetQuizState();
-  renderContest();
   showToast('تم رفع وتحديث أسئلة المسابقة بنجاح');
+  adminAfterSave();
+}
+
+/* --- v1.3: لوحة الأسفار (تسجيل سفر + جدولة فتح الأصحاحات بمعاينة قابلة للتعديل قبل الحفظ) --- */
+function fmtOpenDate(iso) {
+  try { return new Date(iso).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; }
+}
+
+function renderAdminBooks() {
+  const books = Sync.books();
+  const stateLbl = { open_all: 'مفتوح كله', partial: 'مفتوح جزئيًّا', not_started: 'لم يبدأ' };
+  $('admin-books-list').innerHTML = books.length ? books.map(b => `
+    <div class="trk-card">
+      <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+        <div><strong>${escapeHtml(b.title)}</strong> <span class="badge badge-gold" dir="ltr">${escapeHtml(b.id)}</span>${b.active === false ? ' <span class="badge badge-red">معطّل</span>' : ''}</div>
+        <button class="btn btn-outline btn-sm" onclick="adminEditBook('${escapeHtml(b.id)}')">✏️ تعديل</button>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-muted); margin-top:6px;">
+        ${b.kind === 'agpeya' ? 'أجبية' : 'كتاب مقدس'} · ${toAr(b.open_count)} من ${toAr(b.sections)} مفتوح · ${stateLbl[b.state] || ''}
+        ${b.next_open_at ? ' · أقرب فتح: ' + escapeHtml(fmtOpenDate(b.next_open_at)) : ''}
+      </div>
+    </div>`).join('') : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لا توجد أسفار مسجّلة بعد (شغّل 11_v1_3_migrate.sql أو أضف سفرًا).</p>';
+  const sel = $('admin-open-book');
+  const cur = sel.value;
+  sel.innerHTML = books.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title)}</option>`).join('');
+  if (books.some(b => b.id === cur)) sel.value = cur;
+  if (!$('admin-open-date').value) $('admin-open-date').value = todayIso();
+}
+
+function adminEditBook(id) {
+  const b = Sync.books().find(x => x.id === id);
+  if (!b) return;
+  $('admin-book-id').value = b.id; $('admin-book-id').readOnly = true;
+  $('admin-book-title').value = b.title; $('admin-book-short').value = b.short_title || '';
+  $('admin-book-kind').value = b.kind; $('admin-book-sections').value = b.sections;
+  $('admin-book-active').checked = b.active !== false;
+  $('admin-book-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function adminClearBookForm() {
+  ['admin-book-id', 'admin-book-title', 'admin-book-short', 'admin-book-sections'].forEach(i => { $(i).value = ''; });
+  $('admin-book-id').readOnly = false; $('admin-book-active').checked = true; $('admin-book-kind').value = 'bible';
+}
+
+async function adminSaveBook() {
+  if (!requireRole('admin', 'owner')) return;
+  const id = $('admin-book-id').value.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9_-]{1,40}$/.test(id)) return showToast('المعرّف حروف لاتينية صغيرة وأرقام (مثل: luke)', 'error');
+  const title = $('admin-book-title').value.trim();
+  const sections = parseInt($('admin-book-sections').value, 10);
+  if (!title) return showToast('اكتب اسم السفر', 'error');
+  if (!(sections >= 1 && sections <= 400)) return showToast('عدد الأصحاحات بين ١ و ٤٠٠', 'error');
+  const existing = Sync.books().find(b => b.id === id);
+  const r = await Sync.call('admin_upsert_book', {
+    p_id: id, p_kind: $('admin-book-kind').value, p_title: title, p_short: $('admin-book-short').value.trim(),
+    p_sections: sections, p_sort: existing ? existing.sort : 100, p_active: $('admin-book-active').checked
+  });
+  if (!r.ok) return showToast(r.error, 'error');
+  showToast('تم حفظ السفر');
+  adminClearBookForm();
+  await Sync.pull();
+  renderAdminBooks();
+}
+
+let adminOpenRows = [];
+function renderOpenPreview() {
+  const box = $('admin-open-preview');
+  if (!adminOpenRows.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="table-wrap"><table><thead><tr><th>الأصحاح</th><th>موعد الفتح (توقيت القاهرة)</th></tr></thead><tbody>` +
+    adminOpenRows.map((r, i) => `<tr><td>${toAr(r.section)}</td><td><input type="datetime-local" class="form-control" value="${escapeHtml(r.local || '')}" onchange="adminOpenRows[${i}].local = this.value" /></td></tr>`).join('') +
+    `</tbody></table></div>`;
+}
+
+async function adminPreviewOpenings() {
+  if (!requireRole('admin', 'owner')) return;
+  const book = $('admin-open-book').value, d = $('admin-open-date').value, t = $('admin-open-time').value || '00:00';
+  if (!book) return showToast('اختر السفر', 'error');
+  if (!d) return showToast('اختر تاريخ أول فتح', 'error');
+  const r = await Sync.call('staff_preview_schedule', {
+    p_book: book, p_start: `${d}T${t}`, p_mode: $('admin-open-mode').value,
+    p_every: Math.max(1, Math.min(60, parseInt($('admin-open-every').value, 10) || 1))
+  });
+  if (!r.ok) return showToast(r.error, 'error');
+  adminOpenRows = ((r.data && r.data.rows) || []).map(x => ({ section: x.section, local: x.local }));
+  renderOpenPreview();
+  $('admin-open-actions').style.display = adminOpenRows.length ? '' : 'none';
+  showToast('هذه معاينة فقط — عدّل أي موعد ثم اضغط «حفظ المواعيد»', 'warning');
+}
+
+async function adminLoadOpenings() {
+  const book = $('admin-open-book').value;
+  if (!book) return;
+  const r = await Sync.call('book_sections', { p_book: book });
+  if (!r.ok) return showToast(r.error, 'error');
+  const secs = (r.data && r.data.sections) || [];
+  if (!secs.some(x => x.opens_at)) { adminOpenRows = []; renderOpenPreview(); showToast('هذا السفر بلا جدولة: كل أصحاحاته مفتوحة'); return; }
+  adminOpenRows = secs.map(x => ({ section: x.section, local: x.opens_at ? Sync.isoToLocal(x.opens_at) : '' }));
+  renderOpenPreview();
+  $('admin-open-actions').style.display = '';
+}
+
+async function adminSaveOpenings() {
+  if (!requireRole('admin', 'owner')) return;
+  const book = $('admin-open-book').value;
+  const rows = adminOpenRows.filter(r => r.local).map(r => ({ section: r.section, local: r.local }));
+  if (!rows.length) return showToast('لا توجد مواعيد للحفظ', 'error');
+  if (rows.length < adminOpenRows.length && !confirm('بعض الأصحاحات بلا موعد وستبقى «لم تُفتح». متابعة؟')) return;
+  const r = await Sync.call('staff_set_openings', { p_book: book, p_rows: rows });
+  if (!r.ok) return showToast(r.error, 'error');
+  showToast(`تم حفظ مواعيد ${toAr(r.data.count)} أصحاح`);
+  await Sync.pull();
+  renderAdminBooks();
+}
+
+async function adminClearOpenings() {
+  if (!requireRole('admin', 'owner')) return;
+  const book = $('admin-open-book').value;
+  if (!book || !confirm('إلغاء جدولة هذا السفر؟ ستصير كل أصحاحاته مفتوحة.')) return;
+  const r = await Sync.call('staff_set_openings', { p_book: book, p_rows: [] });
+  if (!r.ok) return showToast(r.error, 'error');
+  adminOpenRows = []; renderOpenPreview();
+  showToast('أُلغيت الجدولة');
+  await Sync.pull();
+  renderAdminBooks();
+}
+
+/* --- v1.3: أكواد الفتح (المسؤول/المالك يولّدون كودًا لخادم معيّن) --- */
+const fmtCode = c => String(c).slice(0, 5) + '-' + String(c).slice(5);
+
+async function renderAdminUnlock() {
+  const sel = $('admin-unlock-user');
+  const cur = sel.value;
+  const people = getAccounts().filter(a => a.active && a.id !== (getCurrentUser() || {}).id);
+  sel.innerHTML = '<option value="">— اختر الخادم —</option>' + people.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)}${a.stage ? ' — ' + escapeHtml(a.stage) : ''}</option>`).join('');
+  if (people.some(a => a.id === cur)) sel.value = cur;
+  const list = $('admin-unlock-list');
+  const r = await Sync.call('admin_list_unlock_codes', {});
+  if (!r.ok) { list.innerHTML = `<p style="text-align:center; color:var(--text-muted);">${escapeHtml(r.error)}</p>`; return; }
+  const rows = Array.isArray(r.data) ? r.data : [];
+  const lbl = { active: '<span class="badge badge-green">فعّال</span>', used: '<span class="badge badge-gold">مستعمل</span>', expired: '<span class="badge badge-red">منتهي</span>' };
+  list.innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>الخادم</th><th>الكود</th><th>الحالة</th><th>ينتهي</th><th></th></tr></thead><tbody>` +
+    rows.map(k => `<tr><td>${escapeHtml(k.user_name)}</td><td dir="ltr"><strong>${escapeHtml(fmtCode(k.code))}</strong></td><td>${lbl[k.state] || ''}</td><td>${escapeHtml(fmtOpenDate(k.expires_at))}</td>
+      <td>${k.state === 'active' ? `<button class="btn btn-outline btn-sm" onclick="adminRevokeUnlock('${escapeHtml(k.id)}')">إلغاء</button>` : ''}</td></tr>`).join('') +
+    `</tbody></table></div>` : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لم تُولَّد أكواد لهذه المسابقة بعد.</p>';
+}
+
+async function adminCreateUnlock() {
+  if (!requireRole('admin', 'owner')) return;
+  const uid = $('admin-unlock-user').value;
+  if (!UUID_RE.test(uid)) return showToast('اختر الخادم أولًا', 'error');
+  const hours = Math.max(1, Math.min(168, parseInt($('admin-unlock-hours').value, 10) || 24));
+  const r = await Sync.call('admin_create_unlock_code', { p_user: uid, p_hours: hours });
+  if (!r.ok) return showToast(r.error, 'error');
+  const d = r.data || {};
+  const box = $('admin-unlock-new');
+  box.innerHTML = `🔑 كود <strong>${escapeHtml(d.user_name || '')}</strong>: <strong dir="ltr" style="font-size:1.15rem; letter-spacing:1px;">${escapeHtml(fmtCode(d.code || ''))}</strong><br>صالح لمرة واحدة حتى ${escapeHtml(fmtOpenDate(d.expires_at))}.
+    <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${escapeHtml(fmtCode(d.code || ''))}').then(() => showToast('تم نسخ الكود'))">📋 نسخ</button></div>`;
+  box.style.display = '';
+  renderAdminUnlock();
+}
+
+async function adminRevokeUnlock(id) {
+  if (!requireRole('admin', 'owner') || !UUID_RE.test(id)) return;
+  const r = await Sync.call('admin_revoke_unlock_code', { p_id: id });
+  if (!r.ok) return showToast(r.error, 'error');
+  renderAdminUnlock();
 }
 
 /* ===== v1.1: إدارة الحسابات على Supabase ===== */
@@ -1685,6 +2012,18 @@ function onSyncUpdated(kinds) {
     renderMyResults();
   }
   if (has('posts')) renderPosts();
+  /* v1.3: وصلت قائمة الأسفار (أو تغيّرت): نحدّث القوائم دون مسح ما يكتبه المسؤول */
+  if (isStaffUser(user) && has('books')) {
+    const hadBooks = $('admin-plan-book').options.length > 1;
+    const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE;
+    fillAdminBookSelect($('admin-sched-book-id'), $('admin-sched-book-id').value || sched.bookId || '', '— غير محدد —');
+    if (!hadBooks) adminLoadPlanDay();   // أول وصول للأسفار: نعيد تحميل يوم الخطة ليُختار سفره
+    else {
+      fillAdminBookSelect($('admin-plan-book'), $('admin-plan-book').value, '— بلا قراءة —');
+      fillAdminChapters($('admin-plan-book').value, parseInt($('admin-plan-chapter').value, 10) || null);
+    }
+    if ($('admin-sub-books').style.display === 'block') renderAdminBooks();
+  }
   if (isStaffUser(user) && (has('progress') || has('results') || has('posts') || has('accounts'))) {
     renderAdminPanels({ keepForms: true });
   }
@@ -1694,7 +2033,6 @@ function onSyncUpdated(kinds) {
    10.16 التهيئة الأولية
    =========================================================== */
 function initApp() {
-  if (!localStorage.getItem(STORE.plan)) setStore(STORE.plan, DEFAULT_PLAN);
   if (!localStorage.getItem(STORE.schedule)) setStore(STORE.schedule, DEFAULT_SCHEDULE);
   if (!localStorage.getItem(STORE.contest)) setStore(STORE.contest, DEFAULT_CONTEST);
   if (!localStorage.getItem(STORE.posts)) setStore(STORE.posts, []);
