@@ -1,17 +1,19 @@
 'use strict';
-/* الخدمة اليومية v1.2 — المزامنة: طابور رفع + سحب دوري + توقيت القاهرة
+/* الخدمة اليومية v1.3 — المزامنة: طابور رفع + سحب دوري + توقيت القاهرة
    - الاتصال عبر Auth (js/auth.js: rpc / get). لا يعتمد على app.js وقت التحميل (يستعمل contestId() وقت التشغيل فقط).
    - الواجهة تقرأ كما كانت من localStorage (مفاتيح ds_v2_*)، وهذا الملف يملؤها من السيرفر ويرفع تغييراتها.
    - كل عملية في الطابور آمنة لإعادة الإرسال (معرّفات uuid + upsert/on conflict في الدوال).
-   - الحماية الحقيقية في السيرفر (RLS + دوال SQL)، وليست هنا. */
+   - الحماية الحقيقية في السيرفر (RLS + دوال SQL)، وليست هنا.
+   v1.3: الخطة من plan_days (رد plan_get_today) والمسابقة من contests (رد contest_get_current) بدل app_config.
+         نملأ المفاتيح القديمة ds_v2_schedule / ds_v2_contest / ds_v2_server_cid من رد المسابقة ليبقى باقي الواجهة كما هو. */
 const Sync = (function () {
   const KEYS = {
-    plan: 'ds_v2_plan', schedule: 'ds_v2_schedule', contest: 'ds_v2_contest',
+    plan: 'ds_v2_plan', plan13: 'ds_v2_plan_v13', schedule: 'ds_v2_schedule', contest: 'ds_v2_contest',
     progress: 'ds_v2_progress', results: 'ds_v2_results', posts: 'ds_v2_posts'
   };
   const K = {
     outbox: 'ds_v2_outbox', meta: 'ds_v2_sync_meta', clock: 'ds_v2_clock', bests: 'ds_v2_bests',
-    legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid'
+    legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid', books: 'ds_v2_books'
   };
   const TASKS = ['reading', 'meditation', 'prayer', 'challenge'];
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -135,7 +137,7 @@ const Sync = (function () {
   function rpcArgs(op) {
     switch (op.t) {
       case 'task': return { p_day: op.day, p_task: op.task, p_done: !!op.on };
-      case 'result': return { p_cid: op.cid, p_answers: op.answers || {} };
+      case 'result': return { p_cid: op.cid, p_answers: op.answers || {}, p_code: op.code || null };
       case 'post_new': return { p_id: op.pid, p_text: op.text, p_visibility: op.vis };
       case 'post_edit': return { p_id: op.pid, p_text: op.text };
       case 'post_pub': return { p_id: op.pid };
@@ -173,13 +175,32 @@ const Sync = (function () {
       }
     }
   }
+  /* تسليم مسابقة مرفوض: نتراجع عن السجل المحلي (ونعيد المحاولة السابقة لو كانت إعادة بكود) */
+  function undoLocalResult(op) {
+    const ref = localResultsRef(op.uid, op.cid);
+    if (ref.idx > -1) {
+      if (op.prev && typeof op.prev === 'object') ref.all[ref.idx] = op.prev; else ref.all.splice(ref.idx, 1);
+      lset(KEYS.results, ref.all);
+    }
+    emit(['results']);
+  }
   function onDrop(op, r) {
     const m = errMsg(r).toUpperCase();
     if (op.t === 'result' && m.indexOf('STALE_CONTEST') !== -1) {
-      const ref = localResultsRef(op.uid, op.cid);
-      if (ref.idx > -1) { ref.all.splice(ref.idx, 1); lset(KEYS.results, ref.all); }
-      emit(['results']);
+      undoLocalResult(op);
       notice('تحدّثت المسابقة قبل وصول إجاباتك فلم تُسجَّل هذه المحاولة. افتح المسابقة الحالية وأعد المحاولة.', 'warning');
+      setTimeout(pull, 0);
+      return;
+    }
+    if (op.t === 'result' && m.indexOf('CONTEST_CLOSED') !== -1) {
+      undoLocalResult(op);
+      notice('انتهى وقت المسابقة (أو لم يبدأ) قبل وصول إجاباتك، فلم تُسجَّل. اطلب كود فتح من المسؤول لو أردت المحاولة.', 'warning');
+      setTimeout(pull, 0);
+      return;
+    }
+    if (op.t === 'result' && (m.indexOf('BAD_CODE') !== -1 || m.indexOf('CODE_EXPIRED') !== -1)) {
+      undoLocalResult(op);
+      notice('كود الفتح غير صالح أو انتهت مدته، فلم تُسجَّل هذه المحاولة. اطلب كودًا جديدًا من المسؤول.', 'warning');
       setTimeout(pull, 0);
       return;
     }
@@ -217,17 +238,73 @@ const Sync = (function () {
   function meta() { return lget(K.meta, {}) || {}; }
   function saveMeta(m) { lset(K.meta, m); }
 
-  async function pullConfig(changed, ep) {
-    const r = await getRows('/rest/v1/app_config?select=key,body,updated_at');
+  /* v1.3: الخطة والمسابقة (والأسفار للمسؤول/المالك) من الدوال الجديدة */
+  function setIfChanged(key, raw, changed, kind) {
+    if (lraw(key) !== raw) { lsetRaw(key, raw); changed.add(kind); }
+  }
+  const pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+  /* ISO (UTC) → «YYYY-MM-DD» و «HH:MM» بتوقيت القاهرة (يُعرضان في ملاحظة المسابقة ولوحة الإدارة) */
+  function isoToCairoParts(iso) {
+    const t = Date.parse(iso);
+    if (isNaN(t)) return { d: '', t: '' };
+    const p = cairoParts(t);
+    return { d: p.y + '-' + pad2(p.m) + '-' + pad2(p.d), t: pad2(p.hh) + ':' + pad2(p.mm) };
+  }
+  async function pullPlan(changed, ep) {
+    const r = await Auth.rpc('plan_get_today', {});
     if (!r.ok) return !(r.offline || r.authLost);
     if (ep !== epoch) return false;
-    (Array.isArray(r.data) ? r.data : []).forEach(function (row) {
-      if (row.key === 'cid') {
-        if (lraw(K.cid) !== row.body) { lsetRaw(K.cid, row.body); changed.add('config'); }
-      } else if (KEYS[row.key] && ['plan', 'schedule', 'contest'].indexOf(row.key) !== -1) {
-        if (lraw(KEYS[row.key]) !== row.body) { lsetRaw(KEYS[row.key], row.body); changed.add('config'); }
-      }
-    });
+    const d = r.data;
+    if (!d || typeof d !== 'object') return true;
+    const rec = { day: d.today || null, next: d.next_day || null, plan: d.plan || null, at: Date.now() };
+    const prev = lget(KEYS.plan13, null);
+    // نقارن بدون الطابع الزمني حتى لا نُعيد الرسم بلا داعٍ
+    if (!prev || prev.day !== rec.day || prev.next !== rec.next || JSON.stringify(prev.plan) !== JSON.stringify(rec.plan)) {
+      lset(KEYS.plan13, rec); changed.add('config');
+    } else { lset(KEYS.plan13, rec); }
+    return true;
+  }
+  async function pullContest(changed, ep) {
+    const r = await Auth.rpc('contest_get_current', {});
+    if (!r.ok) return !(r.offline || r.authLost);
+    if (ep !== epoch) return false;
+    const d = r.data;
+    if (!d || typeof d !== 'object') return true;
+    const c = d.contest;
+    if (!c) {
+      setIfChanged(KEYS.contest, '[]', changed, 'config');
+      setIfChanged(KEYS.schedule, JSON.stringify({ book: '', info: '', timer: 0, none: true }), changed, 'config');
+      if (lraw(K.cid) !== null) { ldel(K.cid); changed.add('config'); }
+      return true;
+    }
+    const sp = c.starts_at ? isoToCairoParts(c.starts_at) : { d: '', t: '' };
+    const ep2 = c.ends_at ? isoToCairoParts(c.ends_at) : { d: '', t: '' };
+    const sched = {
+      book: c.book_label || '', info: c.info || '', timer: Number(c.timer) || 0,
+      startDate: sp.d, startTime: sp.t, endDate: ep2.d, endTime: ep2.t,
+      bookId: c.book_id || null, startsAt: c.starts_at || null, endsAt: c.ends_at || null, state: c.state || 'open'
+    };
+    // الأسئلة نص JSON خام كما حُفظ (يحفظ ترتيب المفاتيح فيبقى contestId() ثابتًا). null = لم تبدأ بعد (لا تُرسل للخادم قبل البداية).
+    const qraw = typeof c.questions === 'string' ? c.questions : '[]';
+    setIfChanged(KEYS.contest, qraw, changed, 'config');
+    setIfChanged(KEYS.schedule, JSON.stringify(sched), changed, 'config');
+    if (typeof c.cid === 'string') setIfChanged(K.cid, c.cid, changed, 'config');
+    return true;
+  }
+  async function pullBooks(changed, ep) {
+    const r = await Auth.rpc('books_overview', {});
+    if (!r.ok) return !(r.offline || r.authLost);
+    if (ep !== epoch) return false;
+    const d = r.data;
+    if (!d || !Array.isArray(d.books)) return true;
+    setIfChanged(K.books, JSON.stringify(d.books), changed, 'books');
+    return true;
+  }
+  async function pullConfig(changed, ep) {
+    if (!(await pullPlan(changed, ep))) return false;
+    if (!(await pullContest(changed, ep))) return false;
+    const u = me();
+    if (u && (u.role === 'admin' || u.role === 'owner')) { if (!(await pullBooks(changed, ep))) return false; }
     return true;
   }
 
@@ -344,13 +421,23 @@ const Sync = (function () {
     }
   }
 
-  /* ---------- حفظ الإعدادات (يتطلب اتصالًا؛ لا يُحفظ في الطابور حتى لا يتعارض معرّف المسابقة) ---------- */
-  async function saveConfig(key, body, cid) {
-    const r = await Auth.rpc('admin_set_config', { p_key: key, p_body: body, p_cid: cid || null });
-    if (r.ok) { if (cid) lsetRaw(K.cid, cid); return { ok: true }; }
-    if (r.offline) return { ok: false, error: 'يلزم اتصال بالإنترنت لحفظ هذا الإعداد للجميع. حاول مرة أخرى عند توفر الإنترنت.' };
+  /* ---------- استدعاءات الإدارة (تتطلب اتصالًا؛ لا تدخل الطابور حتى لا تتعارض مع مسابقة أو خطة تغيّرت) ---------- */
+  const ERR_AR = {
+    FORBIDDEN: 'ليست لديك صلاحية لهذا الإجراء.', BAD_INPUT: 'بيانات غير صالحة، راجع الحقول.',
+    BAD_DAY: 'التاريخ خارج المدى المسموح.', BAD_RANGE: 'نهاية المسابقة يجب أن تكون بعد بدايتها.',
+    NO_CONTEST: 'لا توجد مسابقة حالية. ارفع الأسئلة أولًا (المالك).',
+    STALE_CONTEST: 'تغيّرت المسابقة من جهاز آخر قبل الحفظ. حدّث الصفحة ثم أعد الحفظ.',
+    NOT_FOUND: 'العنصر غير موجود.', MOVED_TO_V13: 'هذه النسخة قديمة. حدّث التطبيق.',
+    TRY_AGAIN: 'تعذّر توليد الكود، أعد المحاولة.'
+  };
+  async function call(name, args) {
+    const r = await Auth.rpc(name, args || {});
+    if (r.ok) return { ok: true, data: r.data };
+    if (r.offline) return { ok: false, error: 'يلزم اتصال بالإنترنت لهذا الإجراء. حاول مرة أخرى عند توفر الإنترنت.' };
     if (r.authLost) return { ok: false, error: 'انتهت الجلسة. سجّل الدخول من جديد.' };
-    return { ok: false, error: Auth.errText(r, 'تعذّر حفظ الإعداد.') };
+    const m = errMsg(r).toUpperCase();
+    const k = Object.keys(ERR_AR).find(function (x) { return m.indexOf(x) !== -1; });
+    return { ok: false, error: k ? ERR_AR[k] : Auth.errText(r, 'تعذّر تنفيذ الإجراء.'), code: k || null };
   }
 
   /* ---------- التهيئة والترحيل (مرة واحدة لكل جهاز) ---------- */
@@ -390,28 +477,6 @@ const Sync = (function () {
     } catch (e) { if (typeof console !== 'undefined') console.warn('Sync.migrate', e); }
     lsetRaw(K.ver, '1.2');
   }
-  /* أول مسؤول/مالك يفتح v1.2: ينشر خطته وجدوله (والمالك أسئلته) إن لم تكن منشورة بعد */
-  async function maybePushConfig(u) {
-    if (u.role !== 'admin' && u.role !== 'owner') return;
-    const m = meta();
-    if (m.cfgPushed) return;
-    const r = await getRows('/rest/v1/app_config?select=key');
-    if (!r.ok) return;
-    const have = {};
-    (Array.isArray(r.data) ? r.data : []).forEach(function (x) { have[x.key] = true; });
-    const order = ['plan', 'schedule'].concat(u.role === 'owner' ? ['contest'] : []);
-    for (let i = 0; i < order.length; i++) {
-      const key = order[i];
-      if (have[key]) continue;
-      const raw = lraw(KEYS[key]);
-      if (!raw) continue;
-      const cid = key === 'plan' ? null : (typeof contestId === 'function' ? contestId() : null);
-      const w = await Auth.rpc('admin_set_config', { p_key: key, p_body: raw, p_cid: cid });
-      if (!w.ok && (w.offline || w.authLost)) return;
-    }
-    const nm = meta(); nm.cfgPushed = true; saveMeta(nm);
-  }
-
   async function init() {
     const u = me(); if (!u) return;
     if (initFor === u.id) { kick(); return; }
@@ -424,7 +489,6 @@ const Sync = (function () {
       if (lraw(K.ver) !== '1.2') migrateLegacy(u);
       startTimers();
       await syncClock();
-      await maybePushConfig(u);
     } finally { hold = false; }
     await flush();
     await pull();
@@ -457,9 +521,9 @@ const Sync = (function () {
     init: init, reset: reset, flush: flush, pull: pull,
     pendingCount: pendingCount, serverCid: function () { return lraw(K.cid); },
     bests: function () { return lget(K.bests, {}); },
-    saveConfig: saveConfig,
+    call: call, nowMs: nowMs, isoToLocal: function (iso) { const q = isoToCairoParts(iso); return q.d ? q.d + 'T' + q.t : ''; }, books: function () { return lget(K.books, []); },
     setTask: function (dayKey, task, isOn) { if (TASKS.indexOf(task) !== -1) pushOp({ t: 'task', day: keyToIso(dayKey), task: task, on: !!isOn }); },
-    submitResult: function (cid, answers) { pushOp({ t: 'result', cid: cid, answers: answers || {} }); },
+    submitResult: function (cid, answers, code, prev) { pushOp({ t: 'result', cid: cid, answers: answers || {}, code: code || null, prev: prev || null }); },
     postNew: function (pid, text, vis) { pushOp({ t: 'post_new', pid: pid, text: text, vis: vis === 'public' ? 'public' : 'private' }); },
     postEdit: function (pid, text) { if (validPid(pid)) pushOp({ t: 'post_edit', pid: pid, text: text }); },
     postPublish: function (pid) { if (validPid(pid)) pushOp({ t: 'post_pub', pid: pid }); },
