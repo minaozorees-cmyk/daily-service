@@ -1,4 +1,36 @@
     /* =========================================================
+       الخطوط المحلية (v1.2): تُحمَّل من مجلد fonts/ بدل Google Fonts.
+       الملفات المطلوبة (woff2، الحزمة العربية): <family>-arabic-<weight>-normal.woff2
+       لو الملف غير موجود يُستعمل الخط المثبّت على الجهاز (local) ثم خط النظام، فلا يتعطل شيء.
+       ========================================================= */
+    @font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 400; font-display: swap;
+      src: local('Tajawal'), url('../fonts/tajawal-arabic-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 500; font-display: swap;
+      src: local('Tajawal'), url('../fonts/tajawal-arabic-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 700; font-display: swap;
+      src: local('Tajawal'), url('../fonts/tajawal-arabic-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Tajawal'; font-style: normal; font-weight: 800; font-display: swap;
+      src: local('Tajawal'), url('../fonts/tajawal-arabic-800-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cairo'; font-style: normal; font-weight: 400; font-display: swap;
+      src: local('Cairo'), url('../fonts/cairo-arabic-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cairo'; font-style: normal; font-weight: 600; font-display: swap;
+      src: local('Cairo'), url('../fonts/cairo-arabic-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cairo'; font-style: normal; font-weight: 700; font-display: swap;
+      src: local('Cairo'), url('../fonts/cairo-arabic-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cairo'; font-style: normal; font-weight: 800; font-display: swap;
+      src: local('Cairo'), url('../fonts/cairo-arabic-800-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'El Messiri'; font-style: normal; font-weight: 500; font-display: swap;
+      src: local('El Messiri'), url('../fonts/el-messiri-arabic-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'El Messiri'; font-style: normal; font-weight: 600; font-display: swap;
+      src: local('El Messiri'), url('../fonts/el-messiri-arabic-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'El Messiri'; font-style: normal; font-weight: 700; font-display: swap;
+      src: local('El Messiri'), url('../fonts/el-messiri-arabic-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Amiri'; font-style: normal; font-weight: 400; font-display: swap;
+      src: local('Amiri'), url('../fonts/amiri-arabic-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Amiri'; font-style: normal; font-weight: 700; font-display: swap;
+      src: local('Amiri'), url('../fonts/amiri-arabic-700-normal.woff2') format('woff2'); }
+
+    /* =========================================================
        SECTION 1: DESIGN TOKENS & THEMES (نهاري / ليلي)
        ========================================================= */
     :root {
@@ -1634,3 +1666,18 @@
     .tab-section.active > :nth-child(9), .today-sub-panel.active > :nth-child(9), .login-card > :nth-child(9) { --i: 8; }
     .tab-section.active > :nth-child(10), .today-sub-panel.active > :nth-child(10), .login-card > :nth-child(10) { --i: 9; }
     .tab-section.active > :nth-child(n+11), .today-sub-panel.active > :nth-child(n+11) { --i: 9; }
+
+
+    /* =========================================================
+       v1.2: لافتة «يتوفر تحديث» (js/update.js)
+       ========================================================= */
+    .update-bar {
+      position: fixed; z-index: 9000; left: 12px; right: 12px;
+      bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+      display: none; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 14px; border-radius: var(--radius-sm);
+      background: var(--primary-dark); color: #fff; box-shadow: var(--shadow-lg);
+      font-size: 0.88rem; font-weight: 700;
+    }
+    .update-bar.show { display: flex; }
+    [data-theme="dark"] .update-bar { background: var(--primary-soft); color: var(--text); border: 1px solid var(--border, rgba(255,255,255,0.12)); }
