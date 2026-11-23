@@ -7,30 +7,7 @@
 /* v1.1: المراحل تأتي من js/auth.js (أكواد للسيرفر + عناوين عربية). الحسابات التجريبية حُذفت. */
 const STAGES = Auth.STAGE_OPTIONS.map(s => s.label);
 
-const BIBLE_DATA = {
-  'إنجيل يوحنا': {
-    'الأصحاح ١٥': [
-      'أَنَا الْكَرْمَةُ الْحَقِيقِيَّةُ وَأَبِي الْكَرَّامُ.',
-      'كُلُّ غُصْنٍ فِيَّ لاَ يَأْتِي بِثَمَرٍ يَنْزِعُهُ، وَكُلُّ مَا يَأْتِي بِثَمَرٍ يُنَقِّيهِ لِيَأْتِيَ بِثَمَرٍ أَكْثَرَ.',
-      'أَنْتُمُ الآنَ أَنْقِيَاءُ لِسَبَبِ الْكَلاَمِ الَّذِي كَلَّمْتُكُمْ بِهِ.',
-      'اُثْبُتُوا فِيَّ وَأَنَا فِيكُمْ. كَمَا أَنَّ الْغُصْنَ لاَ يَقْدِرُ أَنْ يَأْتِيَ بِثَمَرٍ مِنْ ذَاتِهِ إِنْ لَمْ يَثْبُتْ فِي الْكَرْمَةِ، كَذلِكَ أَنْتُمْ أَيْضًا إِنْ لَمْ تَثْبُتُوا فِيَّ.',
-      'أَنَا الْكَرْمَةُ وَأَنْتُمُ الأَغْصَانُ. الَّذِي يَثْبُتُ فِيَّ وَأَنَا فِيهِ هذَا يَأْتِي بِثَمَرٍ كَثِيرٍ، لأَنَّكُمْ بِدُونِي لاَ تَقْدِرُونَ أَنْ تَفْعَلُوا شَيْئًا.'
-    ]
-  },
-  'الأجبية المقدسة': {
-    'صلاة باكر — المزمور ٥٠': [
-      'ارحمني يا الله كعظيم رحمتك، ومثل كثرة رأفتك تمحو إثمي.',
-      'تغسلني كثيراً من إثمي ومن خطيتي تطهرني، لأني أنا عارف بإثمي وخطيتي أمامي في كل حين.',
-      'لك وحدك أخطأت، والشر قدامك صنعت، لكي تتبرر في أقوالك وتغلب إذا حوكمت.',
-      'قلباً نقياً اخلق فيَّ يا الله، وروحاً مستقيماً جدد في أحشائي.'
-    ],
-    'صلاة النوم — مزمور ١٣٣': [
-      'ها باركوا الرب يا جميع عبيد الرب، القائمين في بيت الرب، في ديار بيت إلهنا.',
-      'في الليالي ارفعوا أيديكم إلى القدس وباركوا الرب.',
-      'يباركك الرب من صهيون، الذي خلق السماء والأرض.'
-    ]
-  }
-};
+/* v1.4: BIBLE_DATA حُذفت — النصوص في books/ وتُحمَّل عند الطلب (js/books.js). */
 
 /* v1.3: لا خطة ولا مسابقة افتراضية في الكود — كلها من السيرفر (plan_days / contests).
    لا نعرض خطة قديمة ولا أسئلة تجريبية قبل وصول البيانات. */
@@ -51,7 +28,8 @@ const STORE = {
   results: 'ds_v2_results',
   posts: 'ds_v2_posts',
   fontSize: 'ds_v2_font_size',
-  theme: 'ds_v2_theme'
+  theme: 'ds_v2_theme',
+  review: 'ds_v2_review'       // v1.4: آخر مراجعة أجوبة من السيرفر { uid, cid, at, data }
 };
 
 function getStore(key, fallback) {
@@ -289,6 +267,7 @@ function enterApp() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   if (isStaffUser(user)) refreshAccounts(true);
   Sync.init();   // v1.2: ترحيل بيانات الجهاز مرة واحدة + بدء المزامنة
+  restoreDraft();
 }
 
 async function logout(message) {
@@ -299,6 +278,7 @@ async function logout(message) {
     }
   } catch {}
   Auth.logout();
+  clearDraft();
   quizUnlock = null;
   Sync.reset();
   appShell.style.display = 'none';
@@ -341,7 +321,7 @@ function switchTodaySub(sub) {
   if (panel) panel.classList.add('active');
   const btn = document.querySelector(`.today-sub-btn[data-sub="${sub}"]`);
   if (btn) btn.classList.add('active');
-  if (sub === 'reading' && !$('scripture-display').innerHTML.trim()) initBibleSelectors();
+  if (sub === 'reading' && !$('scripture-display').innerHTML.trim()) updateChapterSelector();   // v1.4: lazy — يحمّل الفهرس ثم النص عند أول فتح
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -420,6 +400,7 @@ function planView(p) {
   return {
     reading: title ? title + (p.section ? ` — الأصحاح ${toAr(p.section)}` : '') : '',
     ref: title ? `${short}${sec}${verses}` : '',
+    bookId: p.book_id || null, section: p.section || null, verseFrom: p.verse_from || null, verseTo: p.verse_to || null,
     meditation: p.meditation || '', prayer: p.prayer || '', challenge: p.challenge || ''
   };
 }
@@ -525,71 +506,155 @@ function taskKey(e, key) {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTaskPanel(key); }
 }
 
-/* مطابقة نص الخطة مع النصوص المتوفرة أوفلاين */
+/* ===== v1.4: القراءة والأجبية تُحمَّل من books/ عند الطلب (js/books.js) ===== */
+/* تطبيع عربي لمطابقة عنوان صلاة الأجبية مع نص الخطة الحر */
 function normAr(str) {
   return String(str || '')
-    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[ً-ٰٟـ]/g, '')
     .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
     .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
     .replace(/\s+/g, ' ').trim();
 }
 
-function findPlanReading(text) {
-  const t = normAr(text);
-  let found = null;
-  Object.keys(BIBLE_DATA).filter(b => b !== AGPEYA_KEY).forEach(book => {
-    const full = normAr(book);
-    const short = full.replace(/^(انجيل|سفر|رساله)\s+(معلمنا\s+)?/, '');
-    if (!(t.includes(full) || (short && t.includes(short)))) return;
-    Object.keys(BIBLE_DATA[book]).forEach(ch => {
-      const num = (normAr(ch).match(/\d+/) || [])[0];
-      if (num && new RegExp('(?<!\\d)' + num + '(?!\\d)').test(t)) found = { book, chapter: ch };
-    });
-  });
-  return found;
-}
-
-function findPlanPrayer(text) {
-  const t = normAr(text);
-  const keys = Object.keys(BIBLE_DATA[AGPEYA_KEY]);
-  return keys.find(k => { const title = normAr(k.split('—')[0]); return title && t.includes(title); }) || keys[0];
-}
-
+/* آيات كنص عادي (تُهرَّب دائمًا؛ النصوص لا تحمل HTML) */
 function versesHtml(verses) {
-  return verses.map((v, i) => `<p style="margin-bottom:10px;"><span class="verse-num">${i + 1}</span> ${v}</p>`).join('');
+  return (verses || []).map((v, i) => `<p style="margin-bottom:10px;"><span class="verse-num">${i + 1}</span> ${escapeHtml(v)}</p>`).join('');
+}
+
+/* حجب الأصحاحات غير المفتوحة — في الواجهة فقط (تجربة مستخدم؛ ملفات books/ عامة).
+   الحالة من السيرفر book_sections (مواعيد الفتح بوقت السيرفر). المسؤول/المالك يرون كل شيء.
+   لو تعذّر التحقق (أوفلاين ولا نسخة محفوظة) يُحجب القسم احتياطًا. */
+const SECTION_CACHE_KEY = 'ds_v2_book_sections';
+const sectionMem = {};
+function isStaffNow() { const u = getCurrentUser(); return !!u && (u.role === 'admin' || u.role === 'owner'); }
+async function bookSectionStates(bookId) {
+  if (isStaffNow()) return { all: true };
+  const now = Date.now();
+  const m = sectionMem[bookId];
+  if (m && now - m.at < 30000) return m.data;
+  const r = await Sync.call('book_sections', { p_book: bookId });
+  if (r.ok && r.data && Array.isArray(r.data.sections)) {
+    const map = {};
+    r.data.sections.forEach(s => { map[s.section] = { state: s.state, opensAt: s.opens_at || null }; });
+    const data = { map };
+    sectionMem[bookId] = { at: now, data };
+    const all = getStore(SECTION_CACHE_KEY, {}) || {};
+    all[bookId] = { at: now, map };
+    setStore(SECTION_CACHE_KEY, all);
+    return data;
+  }
+  const saved = (getStore(SECTION_CACHE_KEY, {}) || {})[bookId];
+  if (saved && saved.map) return { map: saved.map, stale: true };
+  return { unknown: true };
+}
+function sectionStatus(states, n) {
+  if (states.all) return { open: true };
+  if (states.unknown) return { open: false, unknown: true };
+  const s = states.map[n];
+  return s && s.state === 'open' ? { open: true } : { open: false, opensAt: s ? s.opensAt : null };
+}
+function lockedHtml(st) {
+  const msg = st.unknown
+    ? 'تعذّر التحقق من موعد فتح هذا القسم. اتصل بالإنترنت ثم أعد المحاولة.'
+    : '🔒 هذا القسم لم يُفتح بعد' + (st.opensAt ? ' — يُفتح ' + fmtOpenDate(st.opensAt) : '');
+  return `<p style="color:var(--text-muted); font-size:0.92rem; line-height:1.9; text-align:center; padding:14px 6px;">${escapeHtml(msg)}</p>`;
+}
+function readingErrorHtml(e) {
+  const code = e && e.code;
+  const msg = code === 'OFFLINE' ? 'تعذّر تحميل النص الآن. اتصل بالإنترنت مرة واحدة لتحميله، وبعدها يعمل بدون اتصال.'
+    : code === 'MISSING' ? 'هذا النص غير متوفر داخل التطبيق بعد.'
+    : 'تعذّر تحميل النص. حاول مرة أخرى.';
+  return `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8; text-align:center; padding:14px 6px;">${escapeHtml(msg)}</p>`;
+}
+const LOADING_HTML = '<p style="color:var(--text-muted); font-size:0.88rem; text-align:center; padding:14px 6px;">جارٍ التحميل…</p>';
+
+function findPlanPrayer(text, chapters) {
+  const t = normAr(text);
+  const keys = Object.keys(chapters || {}).sort((a, b) => Number(a) - Number(b));
+  return keys.find(k => { const title = normAr(String(chapters[k].title || '').split('—')[0]); return title && t.includes(title); }) || keys[0] || '';
+}
+
+/* قراءة اليوم (من خطة السيرفر: book_id + section). يُعاد رسمها بلا وميض لو لم يتغيّر شيء. */
+let taskReadingSeq = 0;
+async function renderTaskReading(plan) {
+  const box = $('task-reading-content');
+  const openLink = (fn, label) => `<div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="${fn}()">${label}</button></div>`;
+  const sig = [plan.reading, plan.bookId, plan.section, isStaffNow() ? 's' : 'u'].join('|');
+  if (box.dataset.sig === sig && box.dataset.done === '1') return;
+  const seq = ++taskReadingSeq;
+  box.dataset.sig = sig; box.dataset.done = '';
+  const done = html => { if (seq === taskReadingSeq) { box.innerHTML = html; box.dataset.done = '1'; } };
+  const muted = t => `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8;">${escapeHtml(t)}</p>`;
+  if (!plan.reading) return done(muted('لا توجد قراءة محددة لهذا اليوم.') + openLink('openBible', '📖 فتح قسم القراءة'));
+  if (!plan.bookId || !plan.section) return done(muted(`نص «${plan.reading}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.`) + openLink('openBible', '📖 فتح قسم القراءة'));
+  if (!box.innerHTML.trim()) box.innerHTML = LOADING_HTML;
+  const states = await bookSectionStates(plan.bookId);
+  if (seq !== taskReadingSeq) return;
+  const st = sectionStatus(states, plan.section);
+  if (!st.open) return done(lockedHtml(st) + openLink('openBible', '📖 فتح قسم القراءة'));
+  try {
+    const book = await Books.load(plan.bookId);
+    const ch = book.chapters[String(plan.section)];
+    if (!ch) return done(muted(`نص «${plan.reading}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.`) + openLink('openBible', '📖 فتح قسم القراءة'));
+    done(`<div style="font-weight:800; color:var(--primary); margin-bottom:10px;">${escapeHtml(book.title)} — ${escapeHtml(ch.title)}</div>
+       <div class="scripture-text">${versesHtml(ch.verses)}</div>` + openLink('openBible', '📖 فتح في قسم القراءة'));
+  } catch (e) {
+    if (e && e.code === 'MISSING') return done(muted(`نص «${plan.reading}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.`) + openLink('openBible', '📖 فتح قسم القراءة'));
+    done(readingErrorHtml(e) + openLink('openBible', '📖 فتح قسم القراءة'));
+  }
 }
 
 function renderTaskPanels(plan) {
-  const openLink = (fn, label) => `<div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="${fn}()">${label}</button></div>`;
-
-  // القراءة
-  const m = plan.reading ? findPlanReading(plan.reading) : null;
-  $('task-reading-content').innerHTML = !plan.reading
-    ? `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8;">لا توجد قراءة محددة لهذا اليوم.</p>` + openLink('openBible', '📖 فتح قسم القراءة')
-    : m
-    ? `<div style="font-weight:800; color:var(--primary); margin-bottom:10px;">${escapeHtml(m.book)} — ${escapeHtml(m.chapter)}</div>
-       <div class="scripture-text">${versesHtml(BIBLE_DATA[m.book][m.chapter])}</div>` + openLink('openBible', '📖 فتح في قسم القراءة')
-    : `<p style="color:var(--text-muted); font-size:0.9rem; line-height:1.8;">نص «${escapeHtml(plan.reading)}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.</p>` + openLink('openBible', '📖 فتح قسم القراءة');
+  renderTaskReading(plan);
 
   // التأمل
   const curUser = getCurrentUser();
   $('task-meditation-content').innerHTML = `<p style="line-height:1.9; font-size:0.96rem; white-space:pre-wrap;">${escapeHtml(personalize(plan.meditation, curUser, true))}</p>`;
 
   // الأجبية
-  const sel = $('task-prayer-select');
-  if (!sel.options.length) {
-    sel.innerHTML = Object.keys(BIBLE_DATA[AGPEYA_KEY]).map(k => `<option value="${k}">${k}</option>`).join('');
-  }
-  if (sel.dataset.plan !== plan.prayer) {
-    sel.value = findPlanPrayer(plan.prayer);
-    sel.dataset.plan = plan.prayer;
-  }
-  renderPrayerText();
+  renderTaskPrayerSelect(plan);
 }
 
-function renderPrayerText() {
-  const verses = BIBLE_DATA[AGPEYA_KEY][$('task-prayer-select').value] || [];
-  $('task-prayer-text').innerHTML = versesHtml(verses);
+let prayerSeq = 0;
+async function renderTaskPrayerSelect(plan) {
+  const sel = $('task-prayer-select');
+  const seq = ++prayerSeq;
+  try {
+    const book = await Books.load('agpeya');
+    if (seq !== prayerSeq) return;
+    const keys = Object.keys(book.chapters).sort((a, b) => Number(a) - Number(b));
+    if (sel.dataset.ready !== '1') {
+      sel.innerHTML = keys.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(book.chapters[k].title)}</option>`).join('');
+      sel.dataset.ready = '1';
+      sel.dataset.plan = '\u0000';
+    }
+    if (sel.dataset.plan !== plan.prayer) {
+      sel.value = findPlanPrayer(plan.prayer, book.chapters);
+      sel.dataset.plan = plan.prayer;
+    }
+    renderPrayerText();
+  } catch (e) {
+    if (seq === prayerSeq) $('task-prayer-text').innerHTML = readingErrorHtml(e);
+  }
+}
+
+let prayerTextSeq = 0;
+async function renderPrayerText() {
+  const box = $('task-prayer-text'), key = $('task-prayer-select').value;
+  const seq = ++prayerTextSeq;
+  if (!key) { box.innerHTML = ''; return; }
+  try {
+    const states = await bookSectionStates('agpeya');
+    if (seq !== prayerTextSeq) return;
+    const st = sectionStatus(states, Number(key));
+    if (!st.open) { box.innerHTML = lockedHtml(st); return; }
+    const book = await Books.load('agpeya');
+    if (seq !== prayerTextSeq) return;
+    const ch = book.chapters[key];
+    box.innerHTML = ch ? versesHtml(ch.verses) : readingErrorHtml({ code: 'MISSING' });
+  } catch (e) {
+    if (seq === prayerTextSeq) box.innerHTML = readingErrorHtml(e);
+  }
 }
 
 const TASK_KEYS = ['reading', 'meditation', 'prayer', 'challenge'];
@@ -703,7 +768,7 @@ function renderStreakCard() {
     const dt = new Date(calView.y, calView.m, day);
     const k = dayKeyOf(dt);
     const future = dt.getTime() > now.getTime();
-    html += `<button type="button" class="cal-cell lvl${counts[k] || 0} ${k === todayK ? 'today' : ''} ${future ? 'future' : ''}" ${future ? 'disabled' : ''} onclick="showDayInfo('${k}')">${day.toLocaleString('ar-EG')}</button>`;
+    html += `<button type="button" class="cal-cell lvl${counts[k] || 0} ${k === todayK ? 'today' : ''} ${future ? 'future' : ''}" ${future ? 'disabled' : ''} onclick="showDayInfo(${jsArg(k)})">${day.toLocaleString('ar-EG')}</button>`;
   }
   $('cal-grid').innerHTML = html;
 
@@ -753,31 +818,66 @@ function toggleTask(taskKey) {
 /* ===========================================================
    10.11 الكتاب والأجبية
    =========================================================== */
-const AGPEYA_KEY = 'الأجبية المقدسة';
 let readingMode = 'bible';
+let readingReadyP = null;
+let readingSeq = 0;
+let chapterListSeq = 0;
 
 function currentReadingBook() {
-  return readingMode === 'agpeya' ? AGPEYA_KEY : $('bible-book-select').value;
+  return readingMode === 'agpeya' ? 'agpeya' : $('bible-book-select').value;
 }
 
+/* قائمة الأسفار من books/index.json (عناوين فقط). تُنفَّذ عند أول فتح لقسم القراءة، ومرة واحدة. */
 function initBibleSelectors() {
-  const books = Object.keys(BIBLE_DATA).filter(b => b !== AGPEYA_KEY);
-  $('bible-book-select').innerHTML = books.map(b => `<option value="${b}">${b}</option>`).join('');
-  updateChapterSelector();
+  if (!readingReadyP) {
+    readingReadyP = Books.index().then(ix => {
+      const books = ix.books.filter(b => b.kind !== 'agpeya');
+      $('bible-book-select').innerHTML = books.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title)}</option>`).join('');
+      return ix;
+    });
+    readingReadyP.catch(() => { readingReadyP = null; });
+  }
+  return readingReadyP;
 }
 
-function updateChapterSelector() {
-  const chapSel = $('bible-chapter-select');
-  const chapters = Object.keys(BIBLE_DATA[currentReadingBook()] || {});
-  chapSel.innerHTML = chapters.map(c => `<option value="${c}">${c}</option>`).join('');
+async function updateChapterSelector() {
+  const seq = ++readingSeq;
+  const chapSel = $('bible-chapter-select'), disp = $('scripture-display');
+  let ix;
+  try { ix = await initBibleSelectors(); } catch (e) { if (seq === readingSeq) { chapSel.innerHTML = ''; disp.innerHTML = readingErrorHtml(e); } return; }
+  if (seq !== readingSeq) return;
+  const id = currentReadingBook();
+  const b = ix.books.find(x => x.id === id);
+  const secs = b ? b.sections.slice().sort((x, y) => x.n - y.n) : [];
+  chapSel.innerHTML = secs.map(s => `<option value="${escapeHtml(String(s.n))}">${escapeHtml(s.title)}</option>`).join('');
   renderScripture();
+  // علامة 🔒 على الأقسام غير المفتوحة (لاحقًا، دون تعطيل العرض)
+  const listSeq = ++chapterListSeq;
+  bookSectionStates(id).then(states => {
+    if (listSeq !== chapterListSeq || states.all) return;
+    Array.from(chapSel.options).forEach((o, i) => {
+      if (!sectionStatus(states, Number(o.value)).open && secs[i]) o.textContent = '🔒 ' + secs[i].title;
+    });
+  });
 }
 
-function renderScripture() {
-  const verses = (BIBLE_DATA[currentReadingBook()] && BIBLE_DATA[currentReadingBook()][$('bible-chapter-select').value]) || [];
-  $('scripture-display').innerHTML = verses.map((v, i) =>
-    `<p style="margin-bottom:10px;"><span class="verse-num">${i + 1}</span> ${v}</p>`
-  ).join('');
+async function renderScripture() {
+  const seq = ++readingSeq;
+  const id = currentReadingBook(), key = $('bible-chapter-select').value, disp = $('scripture-display');
+  if (!key) { disp.innerHTML = ''; return; }
+  disp.innerHTML = LOADING_HTML;
+  const states = await bookSectionStates(id);
+  if (seq !== readingSeq) return;
+  const st = sectionStatus(states, Number(key));
+  if (!st.open) { disp.innerHTML = lockedHtml(st); return; }
+  try {
+    const book = await Books.load(id);
+    if (seq !== readingSeq) return;
+    const ch = book.chapters[key];
+    disp.innerHTML = ch ? versesHtml(ch.verses) : readingErrorHtml({ code: 'MISSING' });
+  } catch (e) {
+    if (seq === readingSeq) disp.innerHTML = readingErrorHtml(e);
+  }
 }
 
 function setReadingMode(mode) {
@@ -808,7 +908,6 @@ let selectedAnswers = {};
 let quizIndex = 0;      // رقم السؤال الحالي (يساوي عدد الأسئلة = كارت الإرسال)
 let quizDone = false;   // تم إرسال المحاولة
 let quizBusy = false;   // منع النقر المزدوج أثناء الانتقال
-let quizReview = null;  // بيانات مراجعة آخر محاولة
 let quizTimerId = null;
 
 function clearQuizTimer() { if (quizTimerId) { clearInterval(quizTimerId); quizTimerId = null; } }
@@ -835,7 +934,6 @@ function resetQuizState() {
   quizIndex = 0;
   quizDone = false;
   quizBusy = false;
-  quizReview = null;
   const rb = $('quiz-result-box');
   if (rb) rb.style.display = 'none';
 }
@@ -885,12 +983,7 @@ function renderQuiz() {
   const prev = user && firstAttempt(user);
 
   if (win.state === 'none') { box.innerHTML = '<p style="text-align:center; color:var(--text-muted);">لا توجد مسابقة حالياً.</p>'; return; }
-  if (!quizDone && !unlock && prev) {
-    quizReview = prev.answers
-      ? { score: prev.score, total: prev.total, questions, answers: prev.answers }
-      : null;
-    quizDone = true;
-  }
+  if (!quizDone && !unlock && prev) quizDone = true;   // v1.4: المراجعة من السيرفر (renderQuizReview)
   if (quizDone) { renderQuizReview(box); box.insertAdjacentHTML('beforeend', unlockBoxHtml()); return; }
   /* v1.3: المسابقة مقفولة (لم تبدأ/انتهت) ولا يملك الخادم كود فتح ⇒ بطاقة إغلاق + خانة الكود */
   if (!unlock && win.state !== 'open') {
@@ -960,7 +1053,7 @@ async function redeemUnlock() {
   }
   quizUnlock = { code, cid: contestId() };
   clearQuizTimer();
-  selectedAnswers = {}; quizIndex = 0; quizDone = false; quizBusy = false; quizReview = null;
+  selectedAnswers = {}; quizIndex = 0; quizDone = false; quizBusy = false; reviewState = '';
   renderQuiz();
   showToast('تم فتح المسابقة لك. يمكنك الحل الآن 🔓', 'success');
 }
@@ -986,31 +1079,104 @@ function startQuizTimer(qIdx, secs) {
   }, 100);
 }
 
-function renderQuizReview(box) {
-  const r = quizReview;
-  if (!r) {
-    box.innerHTML = `<div class="quiz-card" style="text-align:center;"><div style="font-size:2.2rem;">✅</div>
-      <div class="quiz-q" style="margin:8px 0 14px;">تم إرسال إجاباتك وتسجيل نتيجتك</div>
-      <button class="btn btn-gold btn-sm" onclick="switchTab('profile')">🏆 نتائجي في حسابي</button></div>`;
+/* v1.4: مراجعة الإجابات من السيرفر (contest_review) بعد التسليم مباشرة. الأجوبة الصحيحة لا تصل الجهاز قبل ذلك.
+   التخزين المحلي ds_v2_review = { uid, cid, at, data } لآخر مراجعة (يُمسح عند الخروج/تبديل الحساب). */
+let reviewBusy = false;
+let reviewState = '';          // '' | loading | pending (لم تُرفع بعد) | error
+let reviewError = '';
+let celebrateReview = false;   // احتفال بعد وصول الدرجة الرسمية لو كانت كاملة
+
+function getReview(uid, cid) {
+  const r = getStore(STORE.review, null);
+  return r && r.uid === uid && r.cid === cid && r.data ? r : null;
+}
+/* المراجعة المحفوظة «حديثة» لو جُلبت لنفس سجل النتيجة المحلي (recAt) أو كانت أحدث منه.
+   (recAt يمنع حلقة إعادة الجلب لو اختلفت ساعة السيرفر عن ساعة الجهاز قليلًا.) */
+function reviewFresh(user, cid) {
+  const rec = firstAttempt(user), rv = getReview(user.id, cid);
+  return !!(rv && rec && (rv.recAt === rec.at || !rec.at || rv.at >= rec.at - 1000));
+}
+let lastReviewAt = 0, reviewTimer = null;
+async function ensureReview(force) {
+  const user = getCurrentUser();
+  if (!user || reviewBusy) return;
+  const cid = contestId();
+  if (!firstAttempt(user)) return;
+  if (!force && reviewFresh(user, cid)) return;
+  if (!force && Date.now() - lastReviewAt < 4000) {   // حدّ أدنى بين محاولتين تلقائيتين، ونعيد المحاولة بعده
+    if (!reviewTimer) reviewTimer = setTimeout(() => { reviewTimer = null; ensureReview(false); }, 4100 - (Date.now() - lastReviewAt));
     return;
   }
+  lastReviewAt = Date.now();
+  reviewBusy = true; reviewState = 'loading'; reviewError = '';
+  let changed = false;
+  try {
+    if (Sync.pendingCount() > 0) { try { await Sync.flush(); } catch (e) {} }
+    if (Sync.pendingCount() > 0) { reviewState = 'pending'; return; }
+    const r = await Sync.call('contest_review', { p_cid: cid });
+    if (!getCurrentUser() || getCurrentUser().id !== user.id) return;
+    let okQ = false;
+    if (r.ok && r.data && typeof r.data.questions === 'string') { try { okQ = Array.isArray(JSON.parse(r.data.questions)); } catch (e) {} }
+    if (okQ) {
+      const rec2 = firstAttempt(user);
+      setStore(STORE.review, { uid: user.id, cid, at: Date.parse(r.data.created_at) || Date.now(), recAt: rec2 ? rec2.at : 0, data: r.data });
+      reviewState = ''; changed = true;
+      if (celebrateReview && r.data.score === r.data.total && r.data.total > 0) { fireConfetti('big'); haptic([60, 40, 60, 40, 140]); }
+      celebrateReview = false;
+    } else { reviewState = 'error'; reviewError = (r && r.error) || 'تعذّر تحميل مراجعة الإجابات.'; }
+  } finally {
+    reviewBusy = false;
+    if (reviewState === 'loading') reviewState = '';
+  }
+  if (changed && !isQuizInProgress()) renderContest();
+  else if (reviewState && !isQuizInProgress() && $('quiz-review-status')) renderContest();
+}
+function retryReview() { ensureReview(true); renderContest(); }
+
+function renderQuizReview(box) {
+  const user = getCurrentUser();
+  const cid = contestId();
+  const rec = user && firstAttempt(user);
+  const rv = user && reviewFresh(user, cid) ? getReview(user.id, cid) : null;
+  const holdFetch = reviewState === 'error' || (reviewState === 'pending' && Sync.pendingCount() > 0);
+  if (user && rec && !rv && !reviewBusy && !holdFetch) setTimeout(() => ensureReview(false), 0);
+  if (!rv) {
+    // لا مراجعة بعد: ملخص بحسب ما هو معروف
+    const pending = !rec || rec.pending;
+    let note;
+    if (reviewState === 'error') note = `<div id="quiz-review-status" style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">${escapeHtml(reviewError)} <button class="btn btn-outline btn-sm" onclick="retryReview()">🔄 إعادة المحاولة</button></div>`;
+    else if (pending && (reviewState === 'pending' || !navigator.onLine)) note = `<div id="quiz-review-status" style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">⏳ تم حفظ إجاباتك على جهازك. ستظهر درجتك ومراجعة الإجابات عند الاتصال بالإنترنت.</div>`;
+    else note = `<div id="quiz-review-status" style="font-size:0.82rem; color:var(--text-muted); margin-top:8px;">⏳ جارٍ احتساب درجتك وتحميل مراجعة الإجابات…</div>`;
+    const sc = rec && !rec.pending ? `<div class="quiz-summary-score">${rec.score}<small> / ${rec.total}</small></div>` : '<div style="font-size:2.2rem;">✅</div>';
+    box.innerHTML = `<div class="quiz-card" style="text-align:center;">${sc}
+      <div class="quiz-q" style="margin:8px 0 6px;">تم إرسال إجاباتك</div>${note}
+      <div style="margin-top:12px;"><button class="btn btn-gold btn-sm" onclick="switchTab('profile')">🏆 نتائجي في حسابي</button></div></div>`;
+    return;
+  }
+  const d = rv.data;
+  let questions = [];
+  try { questions = JSON.parse(d.questions); } catch (e) {}
+  const answers = d.answers || {};
+  const r = { score: d.score, total: d.total };
   const pct = r.total ? Math.round((r.score / r.total) * 100) : 0;
   const msg = pct === 100 ? 'ممتاز! علامة كاملة 🎉' : pct >= 70 ? 'أحسنت 👏' : pct >= 50 ? 'جيد، وتستطيع أفضل 💪' : 'بارك الله مجهودك، وفي المرة القادمة بتركيز أكبر 🙏';
+  const bestLine = (d.best_score != null && d.best_total && (d.best_score !== d.score || d.best_total !== d.total))
+    ? `<div style="font-size:0.85rem; margin-top:6px;">🏅 أفضل درجة لك: <strong dir="ltr">${d.best_score} / ${d.best_total}</strong></div>` : '';
   const summary = `<div class="quiz-summary">
       <div class="quiz-summary-score">${r.score}<small> / ${r.total}</small></div>
-      <div class="quiz-summary-msg">${msg}</div>
-      <div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">لإعادة المحاولة اطلب كود فتح من المسؤول</div>
+      <div class="quiz-summary-msg">${msg}</div>${bestLine}
+      <div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">لإعادة المحاولة اطلب كود فتح من المسؤول (تُحتسب أفضل درجة)</div>
       <div class="quiz-nav" style="justify-content:center;">
         <button class="btn btn-gold btn-sm" onclick="switchTab('profile')">🏆 نتائجي في حسابي</button>
       </div>
     </div>`;
-  const list = r.questions.map((item, qi) => {
-    const mine = r.answers[qi];
+  const list = questions.map((item, qi) => {
+    const mine = answers[qi];
     const hasKey = typeof item.answer === 'number';
     const isOk = hasKey && mine === item.answer;
     const status = mine === undefined ? '<span class="badge badge-red">⏰ لم تُجب</span>'
                  : isOk ? '<span class="badge badge-green">صحيحة</span>' : '<span class="badge badge-red">خاطئة</span>';
-    const opts = item.options.map((opt, oi) => {
+    const opts = (item.options || []).map((opt, oi) => {
       const isCorrect = hasKey && oi === item.answer;
       const isMineWrong = oi === mine && !isCorrect;
       const cls = isCorrect ? 'correct' : isMineWrong ? 'wrong' : '';
@@ -1054,16 +1220,17 @@ function submitQuiz() {
   const answered = Object.keys(selectedAnswers).length;
   if (!quizTimerSeconds() && answered < questions.length) { showToast('⚠️ برجاء الإجابة على جميع الأسئلة أولاً'); return; }
 
-  let score = 0;
-  questions.forEach((q, idx) => { if (selectedAnswers[idx] === q.answer) score++; });
-
+  /* v1.4: لا تُحسب الدرجة على الجهاز (الأجوبة الصحيحة لم تعد تصل الخادم). الدرجة الرسمية والمراجعة من السيرفر.
+     السجل المحلي «معلَّق» حتى يصل الرد؛ وفي إعادة بكود نُبقي أفضل درجة سابقة ظاهرة. */
   const results = getStore(STORE.results, []);
   const cidNow = contestId();
   const prevIdx = results.findIndex(r => r.userId === user.id && r.cid === cidNow);
-  const prevRec = prevIdx > -1 ? results[prevIdx] : null;   // v1.3: إعادة بكود تحلّ محل المحاولة المحلية، ونحتفظ بالقديمة للتراجع لو رُفضت
+  const prevRec = prevIdx > -1 ? results[prevIdx] : null;
   const rec = {
     userId: user.id, userName: user.name,
-    score, total: questions.length,
+    score: prevRec && !prevRec.pending ? prevRec.score : 0,
+    total: prevRec && !prevRec.pending && prevRec.total ? prevRec.total : questions.length,
+    pending: true,
     cid: cidNow, answers: { ...selectedAnswers },
     date: Sync.cairoNow().toLocaleDateString('ar-EG'), at: Date.now()
   };
@@ -1072,15 +1239,16 @@ function submitQuiz() {
   Sync.submitResult(cidNow, { ...selectedAnswers }, unlock ? unlock.code : null, prevRec);   // الدرجة الرسمية تُحسب في السيرفر
   quizUnlock = null;
 
-  quizReview = { score, total: questions.length, questions, answers: { ...selectedAnswers } };
   selectedAnswers = {};
   quizIndex = 0;
   quizDone = true;
+  celebrateReview = true;
+  reviewState = '';
   renderContest();
   renderMyResults();
   renderToday();
   $('quiz-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (questions.length && score === questions.length) { fireConfetti('big'); haptic([60, 40, 60, 40, 140]); }
+  ensureReview(true);
 }
 
 /* ===========================================================
@@ -1093,6 +1261,9 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+/* v1.4: وسيط آمن داخل onclick="fn(...)". escapeHtml وحدها لا تكفي هناك (المتصفح يفكّ الكيانات قبل تنفيذ JS)،
+   فنكتب الوسيط كنص JSON ثم نهرّبه للسمة. */
+function jsArg(v) { return escapeHtml(JSON.stringify(String(v))); }
 
 function setPostFilter(f) {
   postFilter = f;
@@ -1100,6 +1271,42 @@ function setPostFilter(f) {
   $('filter-mine-btn').className = f === 'mine' ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline';
   renderPosts();
 }
+
+/* v1.4: مسودة المشاركة تُحفظ تلقائيًّا (تبقى لو أُعيد تحميل الصفحة بتحديث تلقائي) وتُمسح عند الإرسال أو الخروج */
+const DRAFT_KEY = 'ds_v2_post_draft';
+let lastAdminInputAt = 0;
+function saveDraft() {
+  const user = getCurrentUser(), ta = $('new-post-text');
+  if (!user || !ta) return;
+  try {
+    if (ta.value.trim()) localStorage.setItem(DRAFT_KEY, JSON.stringify({ uid: user.id, text: ta.value.slice(0, 4000), vis: $('new-post-visibility').value }));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch (e) {}
+}
+function restoreDraft() {
+  const user = getCurrentUser(), ta = $('new-post-text');
+  if (!user || !ta || ta.value) return;
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    if (d && d.uid === user.id && d.text) { ta.value = d.text; if (d.vis === 'public' || d.vis === 'private') $('new-post-visibility').value = d.vis; }
+  } catch (e) {}
+}
+function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+/* هل هناك كتابة لم تُحفظ؟ (يستعملها js/update.js لتأجيل التحديث التلقائي) */
+function hasUnsavedInput() {
+  const ta = $('new-post-text');
+  if (ta && ta.value.trim()) return true;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#tab-admin')) return true;
+  if (Date.now() - lastAdminInputAt < 5 * 60 * 1000) return true;   // كتب مسؤول في لوحة الإدارة خلال آخر ٥ دقائق
+  return false;
+}
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  if (t.id === 'new-post-text' || t.id === 'new-post-visibility') saveDraft();
+  if (t.closest('#tab-admin')) lastAdminInputAt = Date.now();
+}, true);
 
 function createPost() {
   const user = getCurrentUser();
@@ -1117,6 +1324,7 @@ function createPost() {
   setStore(STORE.posts, posts);
   Sync.postNew(pid, text, vis);
   $('new-post-text').value = '';
+  clearDraft();
   renderPosts();
   showToast('✨ تم حفظ المشاركة بنجاح');
 }
@@ -1160,11 +1368,11 @@ function renderPosts() {
         </div>
         <p style="line-height:1.75; font-size:0.95rem; color:var(--text); white-space:pre-wrap;">${escapeHtml(p.text)}</p>
         <div class="post-actions">
-          <button class="react-btn ${liked ? 'active' : ''}" onclick="toggleLike('${p.id}')">❤️ 🙏 (${p.likes.length})</button>
-          ${isMine && p.visibility === 'private' ? `<button class="btn btn-outline btn-sm" onclick="makePublic('${p.id}')">🔄 تحويل لعام</button>` : ''}
-          ${isMine ? `<button class="btn btn-outline btn-sm" onclick="editPost('${p.id}')">✏️ تعديل</button>` : ''}
-          ${(isMine || (isMod && p.visibility === 'public')) ? `<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deletePost('${p.id}')">🗑️ حذف</button>` : ''}
-          ${(isMod && p.visibility === 'public') ? `<button class="btn btn-outline btn-sm" onclick="toggleHidePost('${p.id}')">${p.hidden ? '👁️ إظهار' : '🙈 إخفاء'}</button>` : ''}
+          <button class="react-btn ${liked ? 'active' : ''}" onclick="toggleLike(${jsArg(p.id)})">❤️ 🙏 (${p.likes.length})</button>
+          ${isMine && p.visibility === 'private' ? `<button class="btn btn-outline btn-sm" onclick="makePublic(${jsArg(p.id)})">🔄 تحويل لعام</button>` : ''}
+          ${isMine ? `<button class="btn btn-outline btn-sm" onclick="editPost(${jsArg(p.id)})">✏️ تعديل</button>` : ''}
+          ${(isMine || (isMod && p.visibility === 'public')) ? `<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deletePost(${jsArg(p.id)})">🗑️ حذف</button>` : ''}
+          ${(isMod && p.visibility === 'public') ? `<button class="btn btn-outline btn-sm" onclick="toggleHidePost(${jsArg(p.id)})">${p.hidden ? '👁️ إظهار' : '🙈 إخفاء'}</button>` : ''}
         </div>
       </div>
     `;
@@ -1289,7 +1497,7 @@ function toggleSettings() {
 function renderMyResults() {
   const user = getCurrentUser();
   if (!user || !$('my-results-list')) return;
-  const all = getStore(STORE.results, []);
+  const all = getStore(STORE.results, []).filter(r => !r.pending);   // v1.4: المعلَّق (بلا درجة رسمية بعد) خارج الإحصاءات
   const mine = all.filter(r => r.userId === user.id);
   const pctOf = r => r.total ? Math.round((r.score / r.total) * 100) : 0;
 
@@ -1381,7 +1589,7 @@ function renderAdminPanels(opts) {
   const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE;
   const accounts = getAccounts();
   const progressAll = getStore(STORE.progress, {});
-  const results = getStore(STORE.results, []);
+  const results = getStore(STORE.results, []).filter(r => !r.pending);
   const posts = getStore(STORE.posts, DEFAULT_POSTS);
   const tk = todayKey();
 
@@ -1438,8 +1646,8 @@ function renderAdminPanels(opts) {
       </div>
       <p style="font-size:0.9rem; white-space:pre-wrap;">${escapeHtml(p.text)}</p>
       <div class="post-actions">
-        <button class="btn btn-outline btn-sm" onclick="toggleHidePost('${p.id}')">${p.hidden ? '👁️ إظهار' : '🙈 إخفاء'}</button>
-        <button class="btn btn-danger btn-sm" onclick="deletePost('${p.id}')">🗑️ حذف نهائي</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleHidePost(${jsArg(p.id)})">${p.hidden ? '👁️ إظهار' : '🙈 إخفاء'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePost(${jsArg(p.id)})">🗑️ حذف نهائي</button>
       </div>
     </div>
   `).join('') : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لا توجد مشاركات عامة.</p>';
@@ -1454,7 +1662,7 @@ function renderAdminPanels(opts) {
    v10: أدوات جديدة
    =========================================================== */
 function fillStageSelects() {
-  const opts = '<option value="">— اختر المرحلة —</option>' + Auth.STAGE_OPTIONS.map(s => `<option value="${s.code}">${s.label}</option>`).join('');
+  const opts = '<option value="">— اختر المرحلة —</option>' + Auth.STAGE_OPTIONS.map(s => `<option value="${escapeHtml(s.code)}">${escapeHtml(s.label)}</option>`).join('');
   const el = $('ca-stage');
   if (el) el.innerHTML = opts;
 }
@@ -1752,7 +1960,7 @@ function renderAdminBooks() {
     <div class="trk-card">
       <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
         <div><strong>${escapeHtml(b.title)}</strong> <span class="badge badge-gold" dir="ltr">${escapeHtml(b.id)}</span>${b.active === false ? ' <span class="badge badge-red">معطّل</span>' : ''}</div>
-        <button class="btn btn-outline btn-sm" onclick="adminEditBook('${escapeHtml(b.id)}')">✏️ تعديل</button>
+        <button class="btn btn-outline btn-sm" onclick="adminEditBook(${jsArg(b.id)})">✏️ تعديل</button>
       </div>
       <div style="font-size:0.8rem; color:var(--text-muted); margin-top:6px;">
         ${b.kind === 'agpeya' ? 'أجبية' : 'كتاب مقدس'} · ${toAr(b.open_count)} من ${toAr(b.sections)} مفتوح · ${stateLbl[b.state] || ''}
@@ -1879,7 +2087,7 @@ async function renderAdminUnlock() {
   const lbl = { active: '<span class="badge badge-green">فعّال</span>', used: '<span class="badge badge-gold">مستعمل</span>', expired: '<span class="badge badge-red">منتهي</span>' };
   list.innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>الخادم</th><th>الكود</th><th>الحالة</th><th>ينتهي</th><th></th></tr></thead><tbody>` +
     rows.map(k => `<tr><td>${escapeHtml(k.user_name)}</td><td dir="ltr"><strong>${escapeHtml(fmtCode(k.code))}</strong></td><td>${lbl[k.state] || ''}</td><td>${escapeHtml(fmtOpenDate(k.expires_at))}</td>
-      <td>${k.state === 'active' ? `<button class="btn btn-outline btn-sm" onclick="adminRevokeUnlock('${escapeHtml(k.id)}')">إلغاء</button>` : ''}</td></tr>`).join('') +
+      <td>${k.state === 'active' ? `<button class="btn btn-outline btn-sm" onclick="adminRevokeUnlock(${jsArg(k.id)})">إلغاء</button>` : ''}</td></tr>`).join('') +
     `</tbody></table></div>` : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لم تُولَّد أكواد لهذه المسابقة بعد.</p>';
 }
 
@@ -1893,7 +2101,7 @@ async function adminCreateUnlock() {
   const d = r.data || {};
   const box = $('admin-unlock-new');
   box.innerHTML = `🔑 كود <strong>${escapeHtml(d.user_name || '')}</strong>: <strong dir="ltr" style="font-size:1.15rem; letter-spacing:1px;">${escapeHtml(fmtCode(d.code || ''))}</strong><br>صالح لمرة واحدة حتى ${escapeHtml(fmtOpenDate(d.expires_at))}.
-    <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${escapeHtml(fmtCode(d.code || ''))}').then(() => showToast('تم نسخ الكود'))">📋 نسخ</button></div>`;
+    <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="navigator.clipboard && navigator.clipboard.writeText(${jsArg(fmtCode(d.code || ''))}).then(() => showToast('تم نسخ الكود'))">📋 نسخ</button></div>`;
   box.style.display = '';
   renderAdminUnlock();
 }
@@ -1922,14 +2130,14 @@ function renderAccountsTable(user, accounts) {
   if (!body || !isStaffUser(user)) return;
   const canAct = a => a.id !== user.id && !(user.role === 'admin' && a.role === 'owner');   // المسؤول لا يعدّل المالك، ولا أحد على نفسه
   const roleSelect = a => user.role === 'owner' && a.id !== user.id
-    ? `<select class="form-control" style="margin-top:6px; padding:4px 6px; font-size:0.78rem;" onchange="changeAccountRole('${escapeHtml(a.id)}', this.value)" aria-label="تغيير الدور">
+    ? `<select class="form-control" style="margin-top:6px; padding:4px 6px; font-size:0.78rem;" onchange="changeAccountRole(${jsArg(a.id)}, this.value)" aria-label="تغيير الدور">
          <option value="servant" ${a.role === 'servant' ? 'selected' : ''}>👤 خادم</option>
          <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>🛡️ مسؤول</option>
          <option value="owner" ${a.role === 'owner' ? 'selected' : ''}>👑 مالك</option>
        </select>` : '';
   body.innerHTML = accounts.length ? accounts.map(a => `
     <tr>
-      <td><strong>${escapeHtml(a.name)}</strong><br><span style="font-size:0.72rem; color:var(--text-muted);">${roleLabel(a.role)}</span></td>
+      <td><strong>${escapeHtml(a.name)}</strong><br><span style="font-size:0.72rem; color:var(--text-muted);">${escapeHtml(roleLabel(a.role))}</span></td>
       <td style="font-family:monospace; font-size:0.75rem; direction:ltr; text-align:right;">${escapeHtml(a.email || '—')}</td>
       <td style="direction:ltr; text-align:right;">${escapeHtml(a.phone || '—')}</td>
       <td>${escapeHtml(a.stage || '—')}</td>
@@ -1937,8 +2145,8 @@ function renderAccountsTable(user, accounts) {
       <td>${a.active ? '<span class="badge badge-green">نشط</span>' : '<span class="badge badge-red">معطل</span>'}</td>
       <td>
         ${canAct(a) ? `
-          <button class="btn btn-outline btn-sm" onclick="setAccountStatus('${escapeHtml(a.id)}', '${a.active ? 'disabled' : 'active'}')">${a.active ? 'تعطيل' : 'تفعيل'}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteAccountById('${escapeHtml(a.id)}')">حذف</button>
+          <button class="btn btn-outline btn-sm" onclick="setAccountStatus(${jsArg(a.id)}, ${jsArg(a.active ? 'disabled' : 'active')})">${a.active ? 'تعطيل' : 'تفعيل'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAccountById(${jsArg(a.id)})">حذف</button>
           ${roleSelect(a)}` : '—'}
       </td>
     </tr>
@@ -2042,7 +2250,6 @@ function initApp() {
 
   fillStageSelects();
   initTheme();
-  initBibleSelectors();
 
   /* v1.1: خروج إجباري (حساب معطّل/محذوف/جلسة منتهية) وتغيّر بيانات الحساب */
   Auth.on.forced = (msg) => logout(msg);
@@ -2194,6 +2401,200 @@ window.addEventListener('load', initApp);
 })();
 
 /* ===========================================================
+   v1.4: تصدير Excel + نسخة احتياطية JSON (الإدارة)
+   =========================================================== */
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/* حفظ ملف: في آيفون نحاول مشاركة الملف (التنزيل داخل PWA غير مضمون)، وإلا تنزيل عادي */
+async function saveFileBlob(blob, name, mime) {
+  try {
+    const file = new File([blob], name, { type: mime });
+    const ua = navigator.userAgent || '';
+    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: name }); return 'share'; }
+      catch (e) { if (e && e.name === 'AbortError') return 'share'; }
+    }
+  } catch (e) { /* نكمل بالتنزيل العادي */ }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+    return 'download';
+  } catch (e) { return 'fail'; }
+}
+
+/* «2026-11-23 18:30» بتوقيت القاهرة */
+function cairoStamp(iso) {
+  if (!iso) return '';
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return '';
+  try {
+    const p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(t).forEach(x => { p[x.type] = x.value; });
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+  } catch (e) { return t.toISOString().slice(0, 16).replace('T', ' '); }
+}
+
+async function finishExport(btnId, name, blob, mime) {
+  const how = await saveFileBlob(blob, name, mime);
+  showToast(how === 'fail' ? 'تعذّر حفظ الملف على هذا الجهاز.' : how === 'share' ? 'اختر «حفظ في الملفات» من قائمة المشاركة.' : 'تم تجهيز الملف: ' + name, how === 'fail' ? 'error' : 'success');
+}
+
+/* نتائج المسابقات: ورقة «ملخص المسابقات» + ورقة «النتائج» (كل المحاولات). المصدر: السيرفر مباشرة (يتطلب اتصالًا). */
+async function adminExportResultsXlsx() {
+  if (!requireRole('admin', 'owner')) return;
+  const btn = $('export-results-btn'); if (btn) btn.disabled = true;
+  try {
+    const [cr, rr] = await Promise.all([
+      Sync.fetchAll('/rest/v1/contests?select=cid,book_label,info,starts_at,ends_at,is_current,created_at&order=created_at.asc,cid.asc'),
+      Sync.fetchAll('/rest/v1/results?select=id,user_id,user_name,cid,score,total,attempt,created_at&order=created_at.asc,id.asc')
+    ]);
+    if (!cr.ok || !rr.ok) return showToast((cr.ok ? rr.error : cr.error) || 'تعذّر جلب النتائج.', 'error');
+    const stageOf = {};
+    (getAccounts() || []).forEach(a => { stageOf[a.id] = a.stage || ''; });
+    const label = {}, order = [];
+    cr.rows.forEach(c => { label[c.cid] = c; order.push(c.cid); });
+    rr.rows.forEach(r => { if (!label[r.cid]) { label[r.cid] = { cid: r.cid, book_label: '', info: '' }; order.push(r.cid); } });
+    const ratio = r => (r.total ? r.score / r.total : 0);
+    const pct = r => (r.total ? Math.round((r.score / r.total) * 1000) / 10 : 0);
+    const who = r => r.user_id || ('deleted:' + r.id);
+    // أفضل محاولة لكل (خادم، مسابقة): الأعلى نسبة، وعند التساوي الأحدث
+    const best = {};
+    rr.rows.forEach(r => {
+      const k = who(r) + '|' + r.cid, b = best[k];
+      if (!b || ratio(r) > ratio(b) || (ratio(r) === ratio(b) && (r.attempt || 1) > (b.attempt || 1))) best[k] = r;
+    });
+    const sum = [['م', 'المسابقة', 'المعرّف', 'حالية', 'البداية (القاهرة)', 'النهاية (القاهرة)', 'عدد المشاركين', 'عدد المحاولات', 'متوسط أفضل الدرجات %', 'الأعلى %', 'الأدنى %']];
+    order.forEach((cid, i) => {
+      const c = label[cid];
+      const bs = Object.keys(best).filter(k => best[k].cid === cid).map(k => best[k]);
+      const n = bs.length, att = rr.rows.filter(r => r.cid === cid).length;
+      const ps = bs.map(pct);
+      sum.push([i + 1, c.book_label || c.info || cid, cid, c.is_current ? 'نعم' : '', cairoStamp(c.starts_at), cairoStamp(c.ends_at), n, att,
+        n ? Math.round(ps.reduce((a, b) => a + b, 0) / n * 10) / 10 : '', n ? Math.max(...ps) : '', n ? Math.min(...ps) : '']);
+    });
+    const rows = [['الاسم', 'المرحلة', 'المسابقة', 'المحاولة', 'الدرجة', 'من', 'النسبة %', 'أفضل محاولة', 'التاريخ (القاهرة)']];
+    rr.rows.slice().sort((a, b) => order.indexOf(a.cid) - order.indexOf(b.cid) || String(a.user_name).localeCompare(String(b.user_name), 'ar') || (a.attempt || 1) - (b.attempt || 1))
+      .forEach(r => rows.push([r.user_name || '—', r.user_id ? (stageOf[r.user_id] || '') : 'حساب محذوف', (label[r.cid].book_label || label[r.cid].info || r.cid),
+        r.attempt || 1, r.score, r.total, pct(r), best[who(r) + '|' + r.cid] === r ? '✓' : '', cairoStamp(r.created_at)]));
+    const bytes = XlsxLite.build([
+      { name: 'ملخص المسابقات', rows: sum, widths: [5, 28, 14, 8, 18, 18, 14, 14, 20, 10, 10] },
+      { name: 'النتائج', rows, widths: [26, 16, 28, 9, 9, 7, 11, 12, 18] }
+    ]);
+    await finishExport('export-results-btn', `contest-results-${todayIso()}.xlsx`, new Blob([bytes], { type: XLSX_MIME }), XLSX_MIME);
+  } catch (e) {
+    showToast('تعذّر إنشاء الملف.', 'error');
+  } finally { if (btn) btn.disabled = false; }
+}
+
+async function adminExportAccountsXlsx() {
+  if (!requireRole('admin', 'owner')) return;
+  const btn = $('export-accounts-btn'); if (btn) btn.disabled = true;
+  try {
+    const r = await Auth.loadAccounts();
+    if (!r.ok) return showToast(r.error || 'تعذّر جلب الحسابات.', 'error');
+    const rows = [['الاسم', 'الإيميل', 'التليفون', 'المرحلة', 'الدور', 'الحالة', 'آخر دخول (القاهرة)', 'تاريخ التسجيل (القاهرة)']];
+    getAccounts().forEach(a => rows.push([a.name || '—', a.email || '', a.phone || '', a.stage || '',
+      a.role === 'owner' ? 'مالك' : a.role === 'admin' ? 'مسؤول' : 'خادم', a.active ? 'نشط' : 'معطل', cairoStamp(a.lastLogin), cairoStamp(a.createdAt)]));
+    const bytes = XlsxLite.build([{ name: 'الحسابات', rows, widths: [26, 30, 16, 18, 10, 10, 20, 20] }]);
+    await finishExport('export-accounts-btn', `accounts-${todayIso()}.xlsx`, new Blob([bytes], { type: XLSX_MIME }), XLSX_MIME);
+  } catch (e) {
+    showToast('تعذّر إنشاء الملف.', 'error');
+  } finally { if (btn) btn.disabled = false; }
+}
+
+/* ===== نسخة احتياطية JSON (المالك) ===== */
+let pendingBackup = null;
+const BACKUP_WARN_AR = {
+  CONTEST_CONFLICT: 'مسابقة موجودة بنفس المعرّف لكن بأسئلة مختلفة — تُركت كما هي:',
+  PLAN_BOOK_MISSING: 'خطة يوم بسفر غير موجود — تُخطّيت:',
+  OPENINGS_BOOK_MISSING: 'مواعيد لسفر غير موجود — تُخطّيت:',
+  OPENING_SECTION_OUT_OF_RANGE: 'موعد لقسم خارج عدد أقسام السفر — تُخطّي:',
+  CONTEST_BOOK_MISSING: 'مسابقة بسفر غير موجود — سُجّلت بلا سفر:'
+};
+function backupWarnHtml(w) {
+  const i = String(w).indexOf(':');
+  const k = i === -1 ? String(w) : String(w).slice(0, i), v = i === -1 ? '' : String(w).slice(i + 1);
+  return `<li>${escapeHtml(BACKUP_WARN_AR[k] || k)} <span dir="ltr">${escapeHtml(v)}</span></li>`;
+}
+function backupAccountsHtml(list) {
+  if (!Array.isArray(list) || !list.length) return '';
+  const rows = list.slice(0, 300).map(a => `<tr><td>${escapeHtml(a.full_name || '—')}</td><td>${escapeHtml(a.stage || '—')}</td><td>${escapeHtml(a.role === 'owner' ? 'مالك' : a.role === 'admin' ? 'مسؤول' : 'خادم')}</td><td>${escapeHtml(a.status === 'active' ? 'نشط' : 'معطل')}</td></tr>`).join('');
+  return `<div class="json-hint" style="margin-top:10px;">👥 تقرير الحسابات (للمراجعة فقط — لا يُستعاد، ولا يحمل أرقام تليفونات):</div>
+    <div class="table-wrap"><table><thead><tr><th>الاسم</th><th>المرحلة</th><th>الدور</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+async function ownerExportBackup() {
+  if (!requireRole('owner')) return;
+  const btn = $('backup-export-btn'); if (btn) btn.disabled = true;
+  try {
+    const r = await Sync.call('owner_export_backup', {});
+    if (!r.ok) return showToast(r.error, 'error');
+    const d = r.data || {};
+    const len = k => (Array.isArray(d[k]) ? d[k].length : 0);
+    const blob = new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' });
+    const how = await saveFileBlob(blob, `daily-service-backup-${todayIso()}.json`, 'application/json');
+    $('backup-report').innerHTML = `<div class="json-hint">✅ تم تجهيز النسخة الاحتياطية:
+        ${len('books')} سفر · ${len('openings')} موعد فتح · ${len('plan_days')} يوم خطة · ${len('contests')} مسابقة (بأجوبتها)
+        · ${len('results')} نتيجة (قراءة فقط) · ${len('accounts_report')} حساب (للمراجعة فقط).</div>` + backupAccountsHtml(d.accounts_report);
+    showToast(how === 'fail' ? 'تعذّر حفظ الملف على هذا الجهاز.' : how === 'share' ? 'اختر «حفظ في الملفات» من قائمة المشاركة.' : 'تم تنزيل النسخة الاحتياطية', how === 'fail' ? 'error' : 'success');
+  } finally { if (btn) btn.disabled = false; }
+}
+
+function ownerPickBackup() { if (requireRole('owner')) $('backup-file').click(); }
+
+async function ownerBackupFileChosen(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f || !requireRole('owner')) return;
+  if (f.size > 15 * 1024 * 1024) return showToast('الملف كبير جدًّا (أكثر من ١٥ ميجابايت).', 'error');
+  let obj;
+  try { obj = JSON.parse(await f.text()); } catch (e) { return showToast('الملف ليس JSON صالحًا.', 'error'); }
+  if (!obj || typeof obj !== 'object' || obj.format !== 'ds-backup') return showToast('هذا ليس ملف نسخة احتياطية من التطبيق.', 'error');
+  const r = await Sync.call('owner_import_backup', { p_backup: obj, p_apply: false });
+  if (!r.ok) return showToast(r.error, 'error');
+  pendingBackup = obj;
+  const s = (r.data && r.data.summary) || {}, w = (r.data && r.data.warnings) || [];
+  const n = (o, k) => (o && o[k] != null ? o[k] : 0);
+  const curChange = s.contests && s.contests.current_from !== s.contests.current_to
+    ? `<li>⚠️ المسابقة الحالية ستتغيّر من <span dir="ltr">${escapeHtml(s.contests.current_from || '—')}</span> إلى <span dir="ltr">${escapeHtml(s.contests.current_to || '—')}</span></li>` : '';
+  $('backup-preview').innerHTML = `<div class="card" style="margin-top:12px; border:1px solid var(--gold);">
+      <div style="font-weight:800; margin-bottom:8px;">👁️ معاينة الاستعادة (لم يُغيَّر شيء بعد)</div>
+      <ul style="line-height:2; padding-inline-start:20px; font-size:0.88rem;">
+        <li>الأسفار: ${n(s.books, 'add')} جديد · ${n(s.books, 'update')} يُحدَّث</li>
+        <li>مواعيد الفتح: تُستبدل مواعيد ${n(s.openings, 'books_replaced')} سفر (${n(s.openings, 'rows')} موعد)</li>
+        <li>أيام الخطة: ${n(s.plan_days, 'add')} جديد · ${n(s.plan_days, 'update')} يُحدَّث${n(s.plan_days, 'skipped') ? ' · ' + n(s.plan_days, 'skipped') + ' يُتخطّى' : ''}</li>
+        <li>المسابقات: ${n(s.contests, 'add')} جديدة · ${n(s.contests, 'update')} تُحدَّث${n(s.contests, 'skipped') ? ' · ' + n(s.contests, 'skipped') + ' تُتخطّى' : ''}</li>
+        ${curChange}
+        <li style="color:var(--text-muted);">لن يُمس: ${n(s.ignored, 'results')} نتيجة و${n(s.ignored, 'accounts')} حساب (لا تُستعاد).</li>
+      </ul>
+      ${w.length ? `<div class="json-hint" style="margin-top:8px;">تحذيرات:</div><ul style="line-height:1.9; padding-inline-start:20px; font-size:0.82rem;">${w.map(backupWarnHtml).join('')}</ul>` : ''}
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button class="btn btn-gold" onclick="ownerApplyBackup()">✅ تأكيد الاستعادة</button>
+        <button class="btn btn-outline" onclick="ownerCancelBackup()">إلغاء</button>
+      </div>
+    </div>` + backupAccountsHtml(obj.accounts_report);
+}
+
+function ownerCancelBackup() { pendingBackup = null; $('backup-preview').innerHTML = ''; }
+
+async function ownerApplyBackup() {
+  if (!requireRole('owner') || !pendingBackup) return;
+  if (!confirm('تأكيد الاستعادة؟ سيُدمج محتوى الملف مع الموجود (لا يُحذف شيء غير موجود في الملف).')) return;
+  const r = await Sync.call('owner_import_backup', { p_backup: pendingBackup, p_apply: true });
+  if (!r.ok) return showToast(r.error, 'error');
+  pendingBackup = null;
+  $('backup-preview').innerHTML = '<div class="json-hint">✅ تمت الاستعادة. جارٍ تحديث البيانات…</div>';
+  showToast('تمت استعادة النسخة الاحتياطية', 'success');
+  try { await Sync.pull(); } catch (e) {}
+  renderAll();
+}
+
+/* ===========================================================
    لوحة النتائج المباشرة — الإدارة
    =========================================================== */
 (function () {
@@ -2223,7 +2624,7 @@ window.addEventListener('load', initApp);
   function render(force) {
     const box = $id('admin-live-body');
     if (!box) return;
-    const results = getStore(STORE.results, []);
+    const results = getStore(STORE.results, []).filter(r => !r.pending);
     const sig = filter + '|' + results.map((r) => `${r.userId}:${r.score}/${r.total}:${r.cid}`).join(',');
     if (!force && sig === lastSig) return;
     lastSig = sig;

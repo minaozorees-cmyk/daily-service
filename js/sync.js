@@ -13,7 +13,8 @@ const Sync = (function () {
   };
   const K = {
     outbox: 'ds_v2_outbox', meta: 'ds_v2_sync_meta', clock: 'ds_v2_clock', bests: 'ds_v2_bests',
-    legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid', books: 'ds_v2_books'
+    legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid', books: 'ds_v2_books',
+    review: 'ds_v2_review', sections: 'ds_v2_book_sections'   // v1.4
   };
   const TASKS = ['reading', 'meditation', 'prayer', 'challenge'];
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -168,7 +169,10 @@ const Sync = (function () {
       const ref = localResultsRef(op.uid, op.cid);
       if (ref.idx > -1) {
         const x = ref.all[ref.idx];
-        x.score = r.data.score; x.total = r.data.total;
+        /* v1.4: المعتمد محليًّا أفضل درجة (best_score) لا درجة المحاولة الأخيرة؛ ويزول وسم «معلَّق» */
+        x.score = typeof r.data.best_score === 'number' ? r.data.best_score : r.data.score;
+        x.total = typeof r.data.best_total === 'number' ? r.data.best_total : r.data.total;
+        delete x.pending;
         if (r.data.created_at) { x.date = fmtResultDate(r.data.created_at); x.at = Date.parse(r.data.created_at) || x.at; }
         lset(KEYS.results, ref.all);
         emit(['results']);
@@ -351,9 +355,20 @@ const Sync = (function () {
         date: fmtResultDate(r.created_at), at: Date.parse(r.created_at) || 0
       };
       const i = all.findIndex(function (x) { return x.userId === rec.userId && x.cid === rec.cid; });
-      if (i === -1) { all.push(rec); ch = true; }
-      else if (all[i].score !== rec.score || all[i].total !== rec.total || JSON.stringify(all[i].answers) !== JSON.stringify(rec.answers)) { all[i] = rec; ch = true; }
-      else if (!all[i].at) { all[i].at = rec.at; ch = true; }
+      if (i === -1) { all.push(rec); ch = true; return; }
+      /* v1.4: محاولات متعددة (أكواد الفتح): الدرجة المحفوظة = الأفضل، والإجابات/التاريخ = آخر محاولة */
+      const o = all[i];
+      const ratio = function (x) { return x.total ? x.score / x.total : 0; };
+      const keepOld = !o.pending && ratio(o) > ratio(rec);
+      const merged = {
+        userId: rec.userId, userName: rec.userName, cid: rec.cid,
+        score: keepOld ? o.score : rec.score, total: keepOld ? o.total : rec.total,
+        answers: (rec.at >= (o.at || 0) || o.pending) ? rec.answers : o.answers,
+        date: (rec.at >= (o.at || 0) || o.pending) ? rec.date : o.date,
+        at: Math.max(rec.at || 0, o.pending ? 0 : (o.at || 0))
+      };
+      if (o.score !== merged.score || o.total !== merged.total || o.pending || o.at !== merged.at ||
+          JSON.stringify(o.answers) !== JSON.stringify(merged.answers)) { all[i] = merged; ch = true; }
     });
     if (ch) {
       all.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
@@ -428,7 +443,8 @@ const Sync = (function () {
     NO_CONTEST: 'لا توجد مسابقة حالية. ارفع الأسئلة أولًا (المالك).',
     STALE_CONTEST: 'تغيّرت المسابقة من جهاز آخر قبل الحفظ. حدّث الصفحة ثم أعد الحفظ.',
     NOT_FOUND: 'العنصر غير موجود.', MOVED_TO_V13: 'هذه النسخة قديمة. حدّث التطبيق.',
-    TRY_AGAIN: 'تعذّر توليد الكود، أعد المحاولة.'
+    TRY_AGAIN: 'تعذّر توليد الكود، أعد المحاولة.',
+    NO_RESULT: 'لا توجد لك نتيجة في هذه المسابقة.', BAD_BACKUP: 'ملف النسخة الاحتياطية غير صالح أو تالف.'
   };
   async function call(name, args) {
     const r = await Auth.rpc(name, args || {});
@@ -440,9 +456,25 @@ const Sync = (function () {
     return { ok: false, error: k ? ERR_AR[k] : Auth.errText(r, 'تعذّر تنفيذ الإجراء.'), code: k || null };
   }
 
+  /* v1.4: جلب كل صفوف مسار REST بترقيم صفحات (للتصدير: Excel/نسخة احتياطية). يتطلب اتصالًا. يرجع { ok, rows } أو { ok:false, error } */
+  async function fetchAll(path) {
+    const rows = [];
+    for (let off = 0; off < 200000; off += PAGE) {
+      const r = await getRows(path + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=' + PAGE + '&offset=' + off);
+      if (!r.ok) {
+        if (r.offline) return { ok: false, error: 'يلزم اتصال بالإنترنت لهذا الإجراء.' };
+        return { ok: false, error: Auth.errText(r, 'تعذّر جلب البيانات.') };
+      }
+      const part = Array.isArray(r.data) ? r.data : [];
+      part.forEach(function (x) { rows.push(x); });
+      if (part.length < PAGE) break;
+    }
+    return { ok: true, rows: rows };
+  }
+
   /* ---------- التهيئة والترحيل (مرة واحدة لكل جهاز) ---------- */
   function clearCaches() {
-    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta].forEach(ldel);
+    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections].forEach(ldel);
     lset(KEYS.progress, {}); lset(KEYS.results, []); lset(KEYS.posts, []);
   }
   /* v1.1 كانت كل البيانات محلية: نحفظ نسخة كاملة، ونُبقي بيانات الحساب الحالي فقط ونرفعها للسيرفر */
@@ -521,7 +553,7 @@ const Sync = (function () {
     init: init, reset: reset, flush: flush, pull: pull,
     pendingCount: pendingCount, serverCid: function () { return lraw(K.cid); },
     bests: function () { return lget(K.bests, {}); },
-    call: call, nowMs: nowMs, isoToLocal: function (iso) { const q = isoToCairoParts(iso); return q.d ? q.d + 'T' + q.t : ''; }, books: function () { return lget(K.books, []); },
+    call: call, fetchAll: fetchAll, nowMs: nowMs, isoToLocal: function (iso) { const q = isoToCairoParts(iso); return q.d ? q.d + 'T' + q.t : ''; }, books: function () { return lget(K.books, []); },
     setTask: function (dayKey, task, isOn) { if (TASKS.indexOf(task) !== -1) pushOp({ t: 'task', day: keyToIso(dayKey), task: task, on: !!isOn }); },
     submitResult: function (cid, answers, code, prev) { pushOp({ t: 'result', cid: cid, answers: answers || {}, code: code || null, prev: prev || null }); },
     postNew: function (pid, text, vis) { pushOp({ t: 'post_new', pid: pid, text: text, vis: vis === 'public' ? 'public' : 'private' }); },

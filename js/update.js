@@ -1,18 +1,30 @@
 'use strict';
-/* الخدمة اليومية v1.2 — تسجيل الـService Worker وتحديث آمن
+/* الخدمة اليومية v1.4 — تسجيل الـService Worker وتحديث تلقائي آمن.
    السلوك:
-   - الـSW الجديد يُحمَّل في الخلفية وينتظر. تظهر لافتة «يتوفر تحديث» بزر «حدّث الآن».
-   - التحديث لا يحدث وسط مسابقة قيد الحل ولا وفي الطابور بيانات لم تُرفع بعد.
-   - التفعيل التلقائي الصامت يحدث عندما يذهب التطبيق للخلفية (والتحديث آمن)، وإلا عند الفتح التالي.
-   - إعادة التحميل مرة واحدة فقط وبعد طلبنا نحن (لا عند أول تثبيت). */
+   - الـSW الجديد يُحمَّل في الخلفية وينتظر (لا skipWaiting من الـSW نفسه).
+   - يُفعَّل تلقائيًّا (ثم تُعاد الصفحة مرة واحدة) فقط عندما يكون «آمنًا» و«هادئًا»:
+       آمن  = لا مسابقة قيد الحل، لا بيانات في الطابور لم تُرفع، لا نص قيد الكتابة (مشاركة/نموذج إدارة).
+       هادئ = لا لمس للشاشة منذ ٦٠ ثانية، أو التطبيق في الخلفية، أو التطبيق فُتح للتو ولم يلمسه المستخدم بعد.
+   - لو بقي التحديث معلَّقًا أكثر من ٥ دقائق (لأن الظروف لم تتحقق) تظهر اللافتة القديمة «حدّث الآن» كخيار يدوي.
+   - المسودة: كتابة المشاركة تُحفظ تلقائيًّا في app.js، فلا تضيع حتى لو أُعيد تحميل الصفحة. */
 (function () {
   if (!('serviceWorker' in navigator)) return;
-  var reg = null, waiting = null, asked = false, reloading = false;
+  var IDLE_MS = 60 * 1000, BANNER_AFTER_MS = 5 * 60 * 1000, CHECK_EVERY = 10 * 60 * 1000, TICK = 10 * 1000;
+  var reg = null, waiting = null, asked = false, reloading = false, waitingSince = 0;
   var hadController = !!navigator.serviceWorker.controller;
+  var lastTouch = Date.now(), interacted = false;
 
   function quizBusy() { try { return typeof window.isQuizInProgress === 'function' && window.isQuizInProgress(); } catch (e) { return false; } }
   function unsynced() { try { return typeof Sync !== 'undefined' && Sync.pendingCount() > 0; } catch (e) { return false; } }
-  function safeNow() { return !quizBusy() && !unsynced(); }
+  function typing() { try { return typeof window.hasUnsavedInput === 'function' && window.hasUnsavedInput(); } catch (e) { return false; } }
+  function safeNow() { return !quizBusy() && !unsynced() && !typing(); }
+  function idleNow() {
+    return document.hidden || !interacted || (Date.now() - lastTouch >= IDLE_MS);
+  }
+
+  ['pointerdown', 'touchstart', 'keydown', 'scroll', 'input', 'wheel'].forEach(function (ev) {
+    window.addEventListener(ev, function () { interacted = true; lastTouch = Date.now(); }, { passive: true, capture: true });
+  });
 
   function bar() {
     var el = document.getElementById('update-bar');
@@ -29,17 +41,27 @@
   function showBar() { try { bar().classList.add('show'); } catch (e) {} }
 
   function activate() {
-    if (!waiting) return;
+    if (!waiting || asked) return;
     asked = true;
     try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
   }
+  /* زر «حدّث الآن» اليدوي: لا يتجاوز حماية المسابقة، ويحاول رفع الطابور أولًا */
   async function applyNow() {
     if (quizBusy()) { if (typeof showToast === 'function') showToast('أنهِ المسابقة الحالية أولًا ثم حدّث.', 'warning'); return; }
     if (unsynced()) { try { await Sync.flush(); } catch (e) {} }
     if (unsynced()) { if (typeof showToast === 'function') showToast('بعض بياناتك لم تُرفع بعد. اتصل بالإنترنت ثم حدّث.', 'warning'); return; }
+    if (typing()) { if (typeof showToast === 'function') showToast('أرسل ما تكتبه أو امسحه أولًا ثم حدّث.', 'warning'); return; }
     activate();
   }
-  function onWaiting(w) { waiting = w; showBar(); }
+
+  /* قرار التفعيل التلقائي: يُستدعى دوريًّا وعند كل حدث مناسب */
+  function tick() {
+    if (!waiting || asked) return;
+    if (safeNow() && idleNow()) { activate(); return; }
+    if (waitingSince && Date.now() - waitingSince >= BANNER_AFTER_MS) showBar();
+  }
+
+  function onWaiting(w) { waiting = w; if (!waitingSince) waitingSince = Date.now(); tick(); }
 
   function track(r) {
     if (r.waiting && navigator.serviceWorker.controller) onWaiting(r.waiting);
@@ -60,15 +82,18 @@
   });
 
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { if (waiting && safeNow()) activate(); }   // تحديث صامت أثناء غياب المستخدم
-    else check();
+    if (document.hidden) tick(); else check();
   });
   window.addEventListener('online', check);
-  setInterval(check, 30 * 60 * 1000);
+  setInterval(check, CHECK_EVERY);
+  setInterval(tick, TICK);
 
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).then(function (r) {
       reg = r; track(r); check();
     }).catch(function (err) { console.warn('تعذّر تسجيل الـService Worker:', err); });
   });
+
+  /* للاختبار والتشخيص فقط */
+  window.DSUpdate = { tick: tick, state: function () { return { waiting: !!waiting, asked: asked, safe: safeNow(), idle: idleNow(), interacted: interacted }; } };
 })();
