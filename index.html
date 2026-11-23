@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="light">
 <head>
-  <!-- الخدمة اليومية v1.3 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
+  <!-- الخدمة اليومية v1.4 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1c3a97" />
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=1.3" />
+  <link rel="stylesheet" href="css/app.css?v=1.4" />
 </head>
 <body>
 
@@ -582,6 +582,7 @@
         <button class="sub-btn" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
         <button class="sub-btn" onclick="switchAdminSub('accounts', this)">👥 الحسابات</button>
         <button class="sub-btn owner-only" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
+        <button class="sub-btn owner-only" onclick="switchAdminSub('backup', this)">💾 نسخة احتياطية (مالك)</button>
       </div>
 
       <div id="admin-sub-plan" class="admin-panel card">
@@ -722,6 +723,7 @@
           <button class="reading-mode-btn" data-f="all">كل المسابقات</button>
         </div>
         <div id="admin-live-body"></div>
+        <div style="margin-top:14px;"><button class="btn btn-outline btn-sm" id="export-results-btn" onclick="adminExportResultsXlsx()">⬇️ تصدير النتائج (Excel)</button></div>
       </div>
 
       <div id="admin-sub-moderation" class="admin-panel card" style="display:none;">
@@ -733,6 +735,7 @@
       <div id="admin-sub-accounts" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">👥 إدارة الحسابات والصلاحيات</div></div>
         <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+          <button class="btn btn-outline btn-sm" id="export-accounts-btn" onclick="adminExportAccountsXlsx()" style="margin-inline-end:8px;">⬇️ تصدير الحسابات (Excel)</button>
           <button class="btn btn-outline btn-sm" onclick="refreshAccounts(false)">🔄 تحديث القائمة</button>
         </div>
         <div class="table-wrap">
@@ -741,6 +744,18 @@
             <tbody id="owner-accounts-body"></tbody>
           </table>
         </div>
+      </div>
+
+      <div id="admin-sub-backup" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">💾 نسخة احتياطية واستعادة (المالك)</div></div>
+        <p class="json-hint" style="margin-bottom:10px;">تشمل: الأسفار ومواعيد الفتح وأيام الخطة والمسابقات بأجوبتها. النتائج تُصدَّر للقراءة فقط، والحسابات تظهر في تقرير بلا أرقام تليفونات ولا تُستعاد (حسابات الدخول لا يمكن كتابتها من التطبيق).</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-gold" id="backup-export-btn" onclick="ownerExportBackup()">⬇️ تصدير نسخة احتياطية</button>
+          <button class="btn btn-outline" onclick="ownerPickBackup()">⬆️ استعادة من ملف</button>
+        </div>
+        <input type="file" id="backup-file" accept="application/json,.json" style="display:none;" onchange="ownerBackupFileChosen(this)" />
+        <div id="backup-report" style="margin-top:12px;"></div>
+        <div id="backup-preview"></div>
       </div>
 
       <div id="admin-sub-json" class="admin-panel card" style="display:none;">
@@ -818,13 +833,15 @@
 <!-- =========================================================
      SECTION 10: JAVASCRIPT
      ========================================================= -->
-<script src="js/version.js?v=1.3"></script>
-<script src="js/config.js?v=1.3"></script>
-<script src="js/supa.js?v=1.3"></script>
-<script src="js/auth.js?v=1.3"></script>
-<script src="js/sync.js?v=1.3"></script>
-<script src="js/app.js?v=1.3"></script>
-<script src="js/update.js?v=1.3"></script>
-<script src="js/pwa.js?v=1.3"></script>
+<script src="js/version.js?v=1.4"></script>
+<script src="js/config.js?v=1.4"></script>
+<script src="js/supa.js?v=1.4"></script>
+<script src="js/auth.js?v=1.4"></script>
+<script src="js/sync.js?v=1.4"></script>
+<script src="js/books.js?v=1.4"></script>
+<script src="js/xlsx-lite.js?v=1.4"></script>
+<script src="js/app.js?v=1.4"></script>
+<script src="js/update.js?v=1.4"></script>
+<script src="js/pwa.js?v=1.4"></script>
 </body>
 </html>
