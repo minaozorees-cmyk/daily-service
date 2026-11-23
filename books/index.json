@@ -1,0 +1,37 @@
+{
+ "rev": 1,
+ "books": [
+  {
+   "id": "john",
+   "kind": "bible",
+   "title": "إنجيل يوحنا",
+   "short": "يوحنا",
+   "file": "john.json",
+   "rev": 1,
+   "sections": [
+    {
+     "n": 15,
+     "title": "الأصحاح ١٥"
+    }
+   ]
+  },
+  {
+   "id": "agpeya",
+   "kind": "agpeya",
+   "title": "الأجبية المقدسة",
+   "short": "الأجبية",
+   "file": "agpeya.json",
+   "rev": 1,
+   "sections": [
+    {
+     "n": 1,
+     "title": "صلاة باكر — المزمور ٥٠"
+    },
+    {
+     "n": 6,
+     "title": "صلاة النوم — مزمور ١٣٣"
+    }
+   ]
+  }
+ ]
+}
