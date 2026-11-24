@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="light">
 <head>
-  <!-- الخدمة اليومية v1.4 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
+  <!-- الخدمة اليومية v1.5 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1c3a97" />
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=1.4" />
+  <link rel="stylesheet" href="css/app.css?v=1.5" />
 </head>
 <body>
 
@@ -572,17 +572,21 @@
 
     <!-- ==================== تبويب الإدارة ==================== -->
     <section id="tab-admin" class="tab-section">
+      <div class="admin-menu-row">
+        <button type="button" class="btn btn-outline btn-sm" id="admin-menu-btn" onclick="adminDrawerOpen()" aria-haspopup="dialog" aria-controls="admin-drawer">☰ القائمة</button>
+      </div>
       <div class="sub-nav" id="admin-sub-nav">
-        <button class="sub-btn active" onclick="switchAdminSub('plan', this)">📅 الخطة اليومية</button>
-        <button class="sub-btn" onclick="switchAdminSub('schedule', this)">🗓️ مواعيد المسابقة</button>
-        <button class="sub-btn" onclick="switchAdminSub('unlock', this)">🔑 أكواد الفتح</button>
-        <button class="sub-btn" onclick="switchAdminSub('books', this)">📚 الأسفار</button>
-        <button class="sub-btn" onclick="switchAdminSub('tracking', this)">📊 متابعة الخدام</button>
-        <button class="sub-btn" onclick="switchAdminSub('live', this)">🏅 النتائج المباشرة</button>
-        <button class="sub-btn" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
-        <button class="sub-btn" onclick="switchAdminSub('accounts', this)">👥 الحسابات</button>
-        <button class="sub-btn owner-only" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
-        <button class="sub-btn owner-only" onclick="switchAdminSub('backup', this)">💾 نسخة احتياطية (مالك)</button>
+        <button class="sub-btn active" data-panel="plan" onclick="switchAdminSub('plan', this)">📅 الخطة اليومية</button>
+        <button class="sub-btn" data-panel="schedule" onclick="switchAdminSub('schedule', this)">🗓️ مواعيد المسابقة</button>
+        <button class="sub-btn" data-panel="unlock" onclick="switchAdminSub('unlock', this)">🔑 أكواد الفتح</button>
+        <button class="sub-btn" data-panel="books" onclick="switchAdminSub('books', this)">📚 الأسفار</button>
+        <button class="sub-btn" data-panel="tracking" onclick="switchAdminSub('tracking', this)">📊 متابعة الخدام</button>
+        <button class="sub-btn" data-panel="live" onclick="switchAdminSub('live', this)">🏅 النتائج المباشرة</button>
+        <button class="sub-btn" data-panel="moderation" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
+        <button class="sub-btn" data-panel="accounts" onclick="switchAdminSub('accounts', this)">👥 الحسابات</button>
+        <button class="sub-btn owner-only" data-panel="json" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
+        <button class="sub-btn owner-only" data-panel="backup" onclick="switchAdminSub('backup', this)">💾 نسخة احتياطية (مالك)</button>
+        <button class="sub-btn" data-panel="bulk" onclick="switchAdminSub('bulk', this)">🪄 توزيع الخطة</button>
       </div>
 
       <div id="admin-sub-plan" class="admin-panel card">
@@ -623,6 +627,34 @@
           <button class="btn btn-primary" onclick="saveAdminPlan()">💾 حفظ خطة اليوم</button>
           <button class="btn btn-outline" onclick="deleteAdminPlan()">🗑️ حذف خطة هذا اليوم</button>
         </div>
+      </div>
+
+      <div id="admin-sub-bulk" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🪄 توزيع الخطة</div></div>
+        <p class="json-hint" style="margin-bottom:10px;">يوزّع أصحاحات سفر على أيام الخطة. المعاينة لا تكتب شيئًا، والتنفيذ بعد تأكيدك. الأيام التي فيها قراءة محفوظة تُتخطّى.</p>
+        <div class="form-group">
+          <label class="form-label" for="bulk-book">📖 السفر:</label>
+          <select id="bulk-book" class="form-control" onchange="bulkDirty()"></select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div class="form-group">
+            <label class="form-label" for="bulk-start">📆 تاريخ البداية:</label>
+            <input type="date" id="bulk-start" class="form-control" onchange="bulkDirty()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="bulk-from">ابدأ من أصحاح:</label>
+            <input type="number" id="bulk-from" class="form-control" min="1" value="1" inputmode="numeric" oninput="bulkDirty()" />
+          </div>
+        </div>
+        <label class="bulk-check"><input type="checkbox" id="bulk-manual" onchange="bulkToggleManual()" /> تحديد المدة يدويًّا</label>
+        <div class="form-group" id="bulk-end-wrap" style="display:none;">
+          <label class="form-label" for="bulk-end">🏁 تاريخ النهاية:</label>
+          <input type="date" id="bulk-end" class="form-control" onchange="bulkDirty()" />
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+          <button type="button" class="btn btn-primary" id="bulk-preview-btn" onclick="bulkPreview()">👁️ معاينة</button>
+        </div>
+        <div id="bulk-result" style="margin-top:12px;"></div>
       </div>
 
       <div id="admin-sub-schedule" class="admin-panel card" style="display:none;">
@@ -738,7 +770,9 @@
           <button class="btn btn-outline btn-sm" id="export-accounts-btn" onclick="adminExportAccountsXlsx()" style="margin-inline-end:8px;">⬇️ تصدير الحسابات (Excel)</button>
           <button class="btn btn-outline btn-sm" onclick="refreshAccounts(false)">🔄 تحديث القائمة</button>
         </div>
-        <div class="table-wrap">
+        <input type="search" id="acc-search" class="form-control acc-search" placeholder="🔍 ابحث بالاسم" oninput="accSearch(this.value)" style="display:none;" />
+        <div id="owner-accounts-cards" class="acc-cards" style="display:none;"></div>
+        <div class="table-wrap" id="owner-accounts-table">
           <table>
             <thead><tr><th>الاسم</th><th>الإيميل</th><th>رقم التليفون</th><th>المرحلة</th><th>آخر دخول</th><th>الحالة</th><th>إجراء</th></tr></thead>
             <tbody id="owner-accounts-body"></tbody>
@@ -753,9 +787,26 @@
           <button class="btn btn-gold" id="backup-export-btn" onclick="ownerExportBackup()">⬇️ تصدير نسخة احتياطية</button>
           <button class="btn btn-outline" onclick="ownerPickBackup()">⬆️ استعادة من ملف</button>
         </div>
+        <p class="json-hint" style="margin-top:14px;">🗄️ <strong>النسخة الشاملة</strong> تضيف بيانات الخدام (التقدم والمشاركات والإعجابات والنتائج وأكواد الفتح) لتستطيع استعادتها بعد المسح. تحمل نصوص المشاركات الخاصة، فاحفظها في مكان آمن.</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-gold" id="backup-full-btn" onclick="ownerExportFull()">⬇️ نسخة شاملة (مع بيانات الخدام)</button>
+          <button class="btn btn-outline" onclick="ownerPickServantBackup()">⬆️ استعادة بيانات الخدام</button>
+        </div>
         <input type="file" id="backup-file" accept="application/json,.json" style="display:none;" onchange="ownerBackupFileChosen(this)" />
+        <input type="file" id="servant-file" accept="application/json,.json" style="display:none;" onchange="ownerServantFileChosen(this)" />
         <div id="backup-report" style="margin-top:12px;"></div>
         <div id="backup-preview"></div>
+        <div id="servant-preview"></div>
+        <div class="danger-zone" id="danger-zone">
+          <div class="danger-title">⚠️ منطقة الخطر (المالك فقط)</div>
+          <p class="json-hint">قبل أي مسح تُحفظ نسخة شاملة تلقائيًّا على جهازك، ولا يبدأ المسح قبل نجاحها.</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-danger btn-sm" onclick="dangerOpen('servant')">مسح بيانات الخدام</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="dangerOpen('contests')">مسح كل المسابقات</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="dangerOpen('plan')">مسح كل الخطة اليومية</button>
+          </div>
+          <div id="danger-confirm"></div>
+        </div>
       </div>
 
       <div id="admin-sub-json" class="admin-panel card" style="display:none;">
@@ -833,15 +884,26 @@
 <!-- =========================================================
      SECTION 10: JAVASCRIPT
      ========================================================= -->
-<script src="js/version.js?v=1.4"></script>
-<script src="js/config.js?v=1.4"></script>
-<script src="js/supa.js?v=1.4"></script>
-<script src="js/auth.js?v=1.4"></script>
-<script src="js/sync.js?v=1.4"></script>
-<script src="js/books.js?v=1.4"></script>
-<script src="js/xlsx-lite.js?v=1.4"></script>
-<script src="js/app.js?v=1.4"></script>
-<script src="js/update.js?v=1.4"></script>
-<script src="js/pwa.js?v=1.4"></script>
+<!-- ==================== درج قائمة الإدارة (v1.5) ==================== -->
+<div id="admin-drawer-overlay" class="drawer-overlay" onclick="adminDrawerClose()" hidden></div>
+<aside id="admin-drawer" class="admin-drawer" role="dialog" aria-modal="true" aria-label="قائمة الإدارة" aria-hidden="true">
+  <div class="drawer-head">
+    <strong>☰ قائمة الإدارة</strong>
+    <button type="button" class="drawer-close" onclick="adminDrawerClose()" aria-label="إغلاق">✕</button>
+  </div>
+  <div id="admin-drawer-body" class="drawer-body"></div>
+</aside>
+
+<script src="js/version.js?v=1.5"></script>
+<script src="js/config.js?v=1.5"></script>
+<script src="js/supa.js?v=1.5"></script>
+<script src="js/auth.js?v=1.5"></script>
+<script src="js/sync.js?v=1.5"></script>
+<script src="js/books.js?v=1.5"></script>
+<script src="js/xlsx-lite.js?v=1.5"></script>
+<script src="js/app.js?v=1.5"></script>
+<script src="js/admin15.js?v=1.5"></script>
+<script src="js/update.js?v=1.5"></script>
+<script src="js/pwa.js?v=1.5"></script>
 </body>
 </html>
