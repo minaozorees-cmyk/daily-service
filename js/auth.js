@@ -253,6 +253,15 @@ const Auth = (function () {
     if (r.ok && me) { me.name = String(name).trim(); persist(); }
     return r;
   }
+  /* v1.5: تعديل بيانات حساب (الاسم، التليفون، المرحلة) — مسؤول/مالك. لو الحساب هو حسابي نحدّث النسخة المحلية */
+  async function updateProfile(id, name, phone, stage) {
+    const r = await action('admin_update_profile', { p_uid: id, p_name: name, p_phone: phone, p_stage: stage });
+    if (r.ok && me && me.id === id) {
+      me.name = String(name).trim(); me.phone = String(phone).trim();
+      me.stageCode = stage; me.stage = stageLabel(stage); persist();
+    }
+    return r;
+  }
   async function changePassword(pw) {
     const r = await call(function (t) { return Supa.request('PUT', '/auth/v1/user', { token: t, body: { password: pw } }); });
     return r.ok ? { ok: true } : { ok: false, error: msgFor(r, 'تعذّر تغيير كلمة المرور.') };
@@ -275,6 +284,7 @@ const Auth = (function () {
     deleteAccount: deleteAccount,
     setRole: setRole,
     updateName: updateName,
+    updateProfile: updateProfile,
     changePassword: changePassword,
     /* v1.2: للمزامنة (js/sync.js) — استدعاء بتوكن صالح مع تجديد/خروج إجباري عند فقد الجلسة */
     rpc: rpc,

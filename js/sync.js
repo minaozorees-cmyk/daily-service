@@ -14,7 +14,8 @@ const Sync = (function () {
   const K = {
     outbox: 'ds_v2_outbox', meta: 'ds_v2_sync_meta', clock: 'ds_v2_clock', bests: 'ds_v2_bests',
     legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid', books: 'ds_v2_books',
-    review: 'ds_v2_review', sections: 'ds_v2_book_sections'   // v1.4
+    review: 'ds_v2_review', sections: 'ds_v2_book_sections',   // v1.4
+    sig: 'ds_v2_reset_sig'                                      // v1.5: آخر قيم إشارات المسح (مفتاح مستقل لا يُمسح مع الكاش)
   };
   const TASKS = ['reading', 'meditation', 'prayer', 'challenge'];
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -304,6 +305,38 @@ const Sync = (function () {
     setIfChanged(K.books, JSON.stringify(d.books), changed, 'books');
     return true;
   }
+  /* v1.5: إشارات المسح من السيرفر (app_meta). المزامنة العادية لا تعرف الحذف، فلو تغيّرت قيمة إشارة نُفرّغ الكاش المحلي المعني.
+     أول قراءة على الجهاز: نخزّن القيم فقط بلا تفريغ. الطابور (pendingCount) لا يُمسّ — لا نسحب أصلًا قبل رفعه.
+     لو الجدول غير موجود بعد (لم يُشغَّل 15) أو فشل الطلب لغير انقطاع: نتجاهل الإشارات ولا نوقف السحب. */
+  const SIG_KEYS = ['reset_servant', 'reset_contests', 'reset_plan'];
+  async function pullSignals(changed, ep) {
+    const r = await getRows('/rest/v1/app_meta?select=key,value');
+    if (!r.ok) return !(r.offline || r.authLost);
+    if (ep !== epoch) return false;
+    const now = {};
+    SIG_KEYS.forEach(function (k) { now[k] = ''; });
+    (Array.isArray(r.data) ? r.data : []).forEach(function (x) { if (x && SIG_KEYS.indexOf(x.key) !== -1) now[x.key] = String(x.value || ''); });
+    const prev = lget(K.sig, null);
+    if (!prev || typeof prev !== 'object') { lset(K.sig, now); return true; }
+    const hit = SIG_KEYS.filter(function (k) { return String(prev[k] || '') !== now[k]; });
+    if (!hit.length) return true;
+    if (hit.indexOf('reset_servant') !== -1) {
+      [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.review].forEach(ldel);
+      lset(KEYS.progress, {}); lset(KEYS.results, []); lset(KEYS.posts, []);
+      const m = meta(); delete m.prog; delete m.res; saveMeta(m);   // نُبقي uid وaccAt
+      changed.add('progress'); changed.add('results'); changed.add('posts');
+    }
+    if (hit.indexOf('reset_contests') !== -1) {
+      [KEYS.contest, KEYS.schedule, K.cid, K.review].forEach(ldel);
+      changed.add('config'); changed.add('results');
+    }
+    if (hit.indexOf('reset_plan') !== -1) {
+      [KEYS.plan13, KEYS.plan].forEach(ldel);
+      changed.add('config');
+    }
+    lset(K.sig, now);
+    return true;
+  }
   async function pullConfig(changed, ep) {
     if (!(await pullPlan(changed, ep))) return false;
     if (!(await pullContest(changed, ep))) return false;
@@ -414,6 +447,7 @@ const Sync = (function () {
       if (pendingCount()) { await flush(); if (pendingCount()) return; }   // لا نسحب فوق تغييرات لم تُرفع
       const ep = epoch;
       if (Date.now() - lastClock > 600000) syncClock();
+      if (!(await pullSignals(changed, ep))) return;
       if (!(await pullConfig(changed, ep))) return;
       if (!(await pullPaged('/rest/v1/progress?select=user_id,day,tasks,updated_at', 'updated_at', 'prog', applyProgress, changed, ep))) return;
       if (!(await pullPaged('/rest/v1/results?select=id,user_id,user_name,score,total,cid,answers,created_at', 'created_at', 'res', applyResults, changed, ep))) return;
@@ -444,7 +478,10 @@ const Sync = (function () {
     STALE_CONTEST: 'تغيّرت المسابقة من جهاز آخر قبل الحفظ. حدّث الصفحة ثم أعد الحفظ.',
     NOT_FOUND: 'العنصر غير موجود.', MOVED_TO_V13: 'هذه النسخة قديمة. حدّث التطبيق.',
     TRY_AGAIN: 'تعذّر توليد الكود، أعد المحاولة.',
-    NO_RESULT: 'لا توجد لك نتيجة في هذه المسابقة.', BAD_BACKUP: 'ملف النسخة الاحتياطية غير صالح أو تالف.'
+    NO_RESULT: 'لا توجد لك نتيجة في هذه المسابقة.', BAD_BACKUP: 'ملف النسخة الاحتياطية غير صالح أو تالف.',
+    /* v1.5 */
+    BAD_CONFIRM: 'كلمة التأكيد غير صحيحة. اكتب DELETE بالأحرف الكبيرة.',
+    NOT_FULL_BACKUP: 'هذا الملف ليس نسخة شاملة (v1.5). صدّر «نسخة شاملة» أولًا ثم استعد منها.'
   };
   async function call(name, args) {
     const r = await Auth.rpc(name, args || {});
@@ -474,7 +511,7 @@ const Sync = (function () {
 
   /* ---------- التهيئة والترحيل (مرة واحدة لكل جهاز) ---------- */
   function clearCaches() {
-    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections].forEach(ldel);
+    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections, K.sig].forEach(ldel);
     lset(KEYS.progress, {}); lset(KEYS.results, []); lset(KEYS.posts, []);
   }
   /* v1.1 كانت كل البيانات محلية: نحفظ نسخة كاملة، ونُبقي بيانات الحساب الحالي فقط ونرفعها للسيرفر */
@@ -563,6 +600,6 @@ const Sync = (function () {
     postHide: function (pid, hidden) { if (validPid(pid)) pushOp({ t: 'post_hide', pid: pid, hidden: !!hidden }); },
     like: function (pid, isOn) { if (validPid(pid)) pushOp({ t: 'like', pid: pid, on: !!isOn }); },
     validPid: validPid,
-    _debug: { outbox: outbox }
+    _debug: { outbox: outbox, pullSignals: pullSignals }
   };
 })();
