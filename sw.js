@@ -1,10 +1,10 @@
-/* الخدمة اليومية — Service Worker (v1.4)
+/* الخدمة اليومية — Service Worker (v1.5)
    غيّر VERSION مع كل إصدار (وفي js/version.js).
    v1.2: تحديث آمن —
    - كل ملفات الصدفة (index + css + js + manifest + أيقونات) في كاش واحد بنسخة واحدة، فلا تلتقي صفحة جديدة بملفات قديمة.
    - الـSW الجديد يُحمِّل نسخته كاملة في الخلفية ثم ينتظر. لا skipWaiting تلقائي: التفعيل بطلب من الصفحة (js/update.js)
      بعد التأكد أن لا مسابقة قيد الحل ولا بيانات غير مرفوعة. */
-const VERSION = 'v1.4';
+const VERSION = 'v1.5';
 const CACHE = 'ds-' + VERSION;
 const BOOKS = 'ds-books-v1';              // v1.4: نصوص القراءة (books/) — كاش مستقل لا يُمسح عند تغيّر VERSION
 const FONTS = 'ds-fonts-v1';              // خطوط محلية (fonts/): كاش مستقل لا يُمسح عند تغيّر VERSION
@@ -15,7 +15,7 @@ const INDEX = SCOPE + 'index.html';
 const CORE = [
   './', 'index.html', 'manifest.json',
   'css/app.css',
-  'js/version.js', 'js/config.js', 'js/supa.js', 'js/auth.js', 'js/sync.js', 'js/books.js', 'js/xlsx-lite.js', 'js/app.js', 'js/update.js', 'js/pwa.js'
+  'js/version.js', 'js/config.js', 'js/supa.js', 'js/auth.js', 'js/sync.js', 'js/books.js', 'js/xlsx-lite.js', 'js/app.js', 'js/admin15.js', 'js/update.js', 'js/pwa.js'
 ];
 /* ثانوي: فشله لا يوقف التثبيت */
 const EXTRA = ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'];
@@ -51,7 +51,7 @@ const isIndex = (req, u) =>
   req.mode === 'navigate' ||
   (u.origin === location.origin && (u.pathname === new URL(SCOPE).pathname || /\/index\.html$/.test(u.pathname)));
 
-/* cache-first من كاش النسخة الحالية (ignoreSearch يطابق ?v=1.4 مع المخزَّن) */
+/* cache-first من كاش النسخة الحالية (ignoreSearch يطابق ?v=1.5 مع المخزَّن) */
 async function fromShell(req) {
   const cache = await caches.open(CACHE);
   const hit = await cache.match(req, { ignoreSearch: true });
