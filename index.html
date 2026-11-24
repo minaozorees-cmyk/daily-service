@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="light">
 <head>
-  <!-- الخدمة اليومية v1.5 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
+  <!-- الخدمة اليومية v1.6 — مبني من النموذج الأولي v12 (خارج الترقيم) -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1c3a97" />
@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=1.5" />
+  <link rel="stylesheet" href="css/app.css?v=1.6" />
 </head>
 <body>
 
@@ -683,13 +683,43 @@
         </div>
         <div class="form-group"><label class="form-label">مؤقت كل سؤال بالثواني (٠ = بدون مؤقت):</label><input type="number" min="0" max="300" id="admin-sched-timer" class="form-control" placeholder="0" /></div>
         <button class="btn btn-primary" onclick="saveAdminSchedule()">💾 حفظ الموعد</button>
+
+        <div id="admin-chap-card" style="margin-top:22px; padding-top:16px; border-top:1px solid var(--border);">
+          <div class="honor-history-title">🗓️ مواعيد الأصحاحات</div>
+          <div class="form-group"><label class="form-label">السفر:</label><select id="admin-chap-book" class="form-control" onchange="adminChapBookChanged()"></select></div>
+          <div id="admin-chap-status" class="json-hint"></div>
+          <details id="admin-chap-auto" style="margin:10px 0;">
+            <summary style="cursor:pointer; font-weight:700;">تعبئة تلقائية</summary>
+            <div class="form-group" style="margin-top:8px;"><label class="form-label">أول فتح (توقيت القاهرة):</label>
+              <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
+                <input type="date" id="admin-chap-date" class="form-control" /><input type="time" id="admin-chap-time" class="form-control" value="06:00" />
+              </div></div>
+            <div class="form-group"><label class="form-label">النمط:</label>
+              <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
+                <select id="admin-chap-mode" class="form-control"><option value="daily">أصحاح كل عدد من الأيام</option><option value="all">السفر كله معًا</option></select>
+                <input type="number" min="1" max="60" id="admin-chap-every" class="form-control" value="1" aria-label="كل كم يوم" />
+              </div></div>
+            <div class="form-group"><label class="form-label">يُغلق بعد (بالأيام، اختياري):</label><input type="number" min="1" max="365" id="admin-chap-close" class="form-control" placeholder="بلا إغلاق" /></div>
+            <button class="btn btn-outline btn-sm" onclick="adminChapPreview()">👁️ معاينة</button>
+          </details>
+          <div id="admin-chap-rows"></div>
+          <div id="admin-chap-actions" style="display:none; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn btn-primary btn-sm" onclick="adminChapSave()">💾 حفظ المواعيد</button>
+            <button class="btn btn-danger btn-sm" onclick="adminChapClear()">🗑️ إلغاء الجدولة (الكل مفتوح)</button>
+          </div>
+        </div>
       </div>
 
       <div id="admin-sub-unlock" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">🔑 أكواد فتح المسابقة</div></div>
         <p class="json-hint" style="margin-bottom:12px;">المسابقة تُقفل بعد أول محاولة أو بانتهاء الوقت. الكود يخص خادمًا واحدًا، يُستعمل مرة واحدة، ويسمح له بمحاولة إضافية أو بالحل بعد انتهاء الوقت. سلّمه للخادم بنفسك.</p>
         <div class="form-group"><label class="form-label">الخادم:</label><select id="admin-unlock-user" class="form-control"></select></div>
-        <div class="form-group"><label class="form-label">مدة صلاحية الكود بالساعات (١ – ١٦٨):</label><input type="number" min="1" max="168" id="admin-unlock-hours" class="form-control" value="24" /></div>
+        <div class="form-group"><label class="form-label">مدة صلاحية الكود:</label>
+          <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:8px;">
+            <input type="number" min="1" id="admin-unlock-amount" class="form-control" value="24" aria-label="المدة" />
+            <select id="admin-unlock-unit" class="form-control" aria-label="الوحدة"><option value="m">دقائق</option><option value="h" selected>ساعات</option><option value="d">أيام</option></select>
+          </div>
+          <p class="json-hint">من ٥ دقائق إلى ٧ أيام. الصلاحية تُفحص لحظة التسليم لا لحظة البدء، فتأكد أن المدة تكفي لحل الاختبار.</p></div>
         <button class="btn btn-gold" onclick="adminCreateUnlock()">🔑 توليد كود</button>
         <div id="admin-unlock-new" class="sched-note" style="display:none; margin-top:14px;"></div>
         <div class="honor-history-title" style="margin-top:18px;">أكواد المسابقة الحالية</div>
@@ -715,30 +745,14 @@
           </div>
         </div>
         <div class="honor-history-title" style="margin-top:16px;">🗓️ جدولة فتح الأصحاحات</div>
-        <p class="json-hint">السفر بلا جدولة = كل أصحاحاته مفتوحة. بعد الجدولة، الأصحاح بلا موعد يُعدّ «لم يُفتح».</p>
-        <div class="form-group"><label class="form-label">السفر:</label><select id="admin-open-book" class="form-control" onchange="adminLoadOpenings()"></select></div>
-        <div class="form-group">
-          <label class="form-label">أول فتح (توقيت القاهرة):</label>
-          <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
-            <input type="date" id="admin-open-date" class="form-control" />
-            <input type="time" id="admin-open-time" class="form-control" value="06:00" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">النمط:</label>
-          <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:8px;">
-            <select id="admin-open-mode" class="form-control"><option value="daily">أصحاح كل عدد من الأيام</option><option value="all">السفر كله معًا</option></select>
-            <input type="number" min="1" max="60" id="admin-open-every" class="form-control" value="1" aria-label="كل كم يوم" />
-          </div>
-        </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-outline btn-sm" onclick="adminPreviewOpenings()">👁️ معاينة</button>
-          <button class="btn btn-outline btn-sm" onclick="adminLoadOpenings()">📥 الجدول الحالي</button>
-        </div>
-        <div id="admin-open-preview" style="margin-top:12px;"></div>
-        <div id="admin-open-actions" style="display:none; gap:8px; flex-wrap:wrap; margin-top:10px;">
-          <button class="btn btn-primary btn-sm" onclick="adminSaveOpenings()">💾 حفظ المواعيد</button>
-          <button class="btn btn-danger btn-sm" onclick="adminClearOpenings()">إلغاء الجدولة</button>
+        <p class="json-hint">الجدولة انتقلت إلى تبويب «مواعيد المسابقة» (مواعيد الفتح والإغلاق في مكان واحد).</p>
+        <button class="btn btn-outline btn-sm" onclick="adminGoChapterSchedule()">🗓️ الذهاب إلى مواعيد الأصحاحات</button>
+        <div id="admin-bulkbooks-box" class="owner-only" style="margin-top:18px;">
+          <div class="honor-history-title">📥 تسجيل الأسفار من index.json (للمالك)</div>
+          <p class="json-hint">ارفع الأسفار على GitHub أولًا، وانتظر النشر، ثم اضغط. يفحص كل سفر ويعرض معاينة قبل التنفيذ، ولا يحذف أي سفر.</p>
+          <button class="btn btn-primary btn-sm" id="bulkbooks-start" onclick="adminBulkBooksStart()">📥 تسجيل الأسفار من index.json</button>
+          <div id="bulkbooks-progress" style="margin-top:10px;"></div>
+          <div id="bulkbooks-result" style="margin-top:10px;"></div>
         </div>
       </div>
 
@@ -894,16 +908,17 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=1.5"></script>
-<script src="js/config.js?v=1.5"></script>
-<script src="js/supa.js?v=1.5"></script>
-<script src="js/auth.js?v=1.5"></script>
-<script src="js/sync.js?v=1.5"></script>
-<script src="js/books.js?v=1.5"></script>
-<script src="js/xlsx-lite.js?v=1.5"></script>
-<script src="js/app.js?v=1.5"></script>
-<script src="js/admin15.js?v=1.5"></script>
-<script src="js/update.js?v=1.5"></script>
-<script src="js/pwa.js?v=1.5"></script>
+<script src="js/version.js?v=1.6"></script>
+<script src="js/config.js?v=1.6"></script>
+<script src="js/supa.js?v=1.6"></script>
+<script src="js/auth.js?v=1.6"></script>
+<script src="js/sync.js?v=1.6"></script>
+<script src="js/books.js?v=1.6"></script>
+<script src="js/xlsx-lite.js?v=1.6"></script>
+<script src="js/app.js?v=1.6"></script>
+<script src="js/admin15.js?v=1.6"></script>
+<script src="js/admin16.js?v=1.6"></script>
+<script src="js/update.js?v=1.6"></script>
+<script src="js/pwa.js?v=1.6"></script>
 </body>
 </html>
