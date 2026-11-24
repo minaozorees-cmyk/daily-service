@@ -1,5 +1,5 @@
 'use strict';
-/* الخدمة اليومية v1.5 — واجهة الإدارة الإضافية:
+/* الخدمة اليومية v1.5 (الدرج بستايل v1.6) — واجهة الإدارة الإضافية:
    - درج القائمة الجانبية (بجانب الشريط الأفقي، لا بدلًا منه)
    - توزيع الخطة (معاينة ثم تنفيذ) — دالة السيرفر staff_plan_bulk
    - كروت الحسابات + تعديل البيانات — admin_update_profile
@@ -15,11 +15,26 @@
      ١) الدرج
      =========================================================== */
   const GROUPS = [
-    { t: 'المحتوى', items: [['plan', '📅 الخطة اليومية'], ['bulk', '🪄 توزيع الخطة'], ['books', '📚 الأسفار']] },
-    { t: 'المسابقات', items: [['schedule', '🗓️ مواعيد المسابقة'], ['unlock', '🔑 أكواد الفتح'], ['live', '🏅 النتائج المباشرة']] },
-    { t: 'الخدام', items: [['tracking', '📊 متابعة الخدام'], ['accounts', '👥 الحسابات'], ['moderation', '🙈 الإشراف']] },
-    { t: 'المالك', owner: true, items: [['json', '⬆️ رفع JSON'], ['backup', '💾 النسخة الاحتياطية والحذف']] }
+    { t: 'المحتوى', items: [['plan', 'الخطة'], ['bulk', 'التوزيع'], ['books', 'الأسفار']] },
+    { t: 'المسابقات', items: [['schedule', 'المواعيد'], ['unlock', 'الأكواد'], ['live', 'النتائج']] },
+    { t: 'الخدام', items: [['tracking', 'المتابعة'], ['accounts', 'الحسابات'], ['moderation', 'الإشراف']] },
+    { t: 'المالك', owner: true, items: [['json', 'رفع JSON'], ['backup', 'النسخة الاحتياطية']] }
   ];
+  /* v1.6: أيقونات خطية inline (24px، stroke 1.9) بنفس أسلوب أيقونات الشريط السفلي */
+  const ICONS = {
+    plan: '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+    bulk: '<path d="M4 7h10M4 12h16M4 17h8"/><circle cx="18" cy="7" r="2"/><circle cx="15" cy="17" r="2"/>',
+    books: '<path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>',
+    schedule: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    unlock: '<circle cx="8" cy="14" r="3.5"/><path d="M10.5 11.5 18 4M15 7l2 2M17.5 4.5l2 2"/>',
+    live: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5a2 2 0 0 0 2 4M16 6h3a2 2 0 0 1-2 4M12 13v4M8.5 20h7"/>',
+    tracking: '<path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/>',
+    accounts: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3 3 0 0 1 0 5.6M18 14.2A5.5 5.5 0 0 1 21 19"/>',
+    moderation: '<path d="M12 3.5 5 6.2V12c0 4 3 6.6 7 8.5 4-1.9 7-4.5 7-8.5V6.2L12 3.5Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+    json: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+    backup: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'
+  };
+  const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
   const folded = {};
 
   function activePanel() {
@@ -34,7 +49,7 @@
           <span>${escapeHtml(g.t)}</span><span aria-hidden="true">${folded[i] ? '▸' : '▾'}</span>
         </button>
         <div class="drawer-group-items" ${folded[i] ? 'hidden' : ''}>
-          ${g.items.map((it) => `<button type="button" class="drawer-item ${it[0] === act ? 'active' : ''}" onclick="adminDrawerGo(${jsArg(it[0])})">${escapeHtml(it[1])}</button>`).join('')}
+          ${g.items.map((it) => `<button type="button" class="drawer-item ${it[0] === act ? 'active' : ''}" ${it[0] === act ? 'aria-current="true"' : ''} onclick="adminDrawerGo(${jsArg(it[0])})"><span class="drawer-ico">${icon(it[0])}</span><span class="drawer-lbl">${escapeHtml(it[1])}</span></button>`).join('')}
         </div>
       </div>`).join('');
   }

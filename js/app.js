@@ -535,7 +535,7 @@ async function bookSectionStates(bookId) {
   const r = await Sync.call('book_sections', { p_book: bookId });
   if (r.ok && r.data && Array.isArray(r.data.sections)) {
     const map = {};
-    r.data.sections.forEach(s => { map[s.section] = { state: s.state, opensAt: s.opens_at || null }; });
+    r.data.sections.forEach(s => { map[s.section] = { state: s.state, opensAt: s.opens_at || null, closesAt: s.closes_at || null }; });
     const data = { map };
     sectionMem[bookId] = { at: now, data };
     const all = getStore(SECTION_CACHE_KEY, {}) || {};
@@ -551,11 +551,14 @@ function sectionStatus(states, n) {
   if (states.all) return { open: true };
   if (states.unknown) return { open: false, unknown: true };
   const s = states.map[n];
-  return s && s.state === 'open' ? { open: true } : { open: false, opensAt: s ? s.opensAt : null };
+  if (s && s.state === 'open') return { open: true };
+  if (s && s.state === 'closed') return { open: false, closed: true, closesAt: s.closesAt || null };   // v1.6: فات موعد الإغلاق
+  return { open: false, opensAt: s ? s.opensAt : null };
 }
 function lockedHtml(st) {
   const msg = st.unknown
     ? 'تعذّر التحقق من موعد فتح هذا القسم. اتصل بالإنترنت ثم أعد المحاولة.'
+    : st.closed ? '🔒 أُغلق هذا القسم'
     : '🔒 هذا القسم لم يُفتح بعد' + (st.opensAt ? ' — يُفتح ' + fmtOpenDate(st.opensAt) : '');
   return `<p style="color:var(--text-muted); font-size:0.92rem; line-height:1.9; text-align:center; padding:14px 6px;">${escapeHtml(msg)}</p>`;
 }
@@ -848,7 +851,16 @@ async function updateChapterSelector() {
   if (seq !== readingSeq) return;
   const id = currentReadingBook();
   const b = ix.books.find(x => x.id === id);
-  const secs = b ? b.sections.slice().sort((x, y) => x.n - y.n) : [];
+  let secs = [];
+  if (b) {
+    // v1.6: الأقسام من ملف السفر نفسه (الفهرس لا يحمل sections)
+    chapSel.innerHTML = ''; disp.innerHTML = LOADING_HTML;
+    try { secs = (await Books.sections(id)).slice().sort((x, y) => x.n - y.n); }
+    catch (e) { if (seq === readingSeq) disp.innerHTML = readingErrorHtml(e); return; }
+    if (seq !== readingSeq) return;
+  } else {
+    disp.innerHTML = readingErrorHtml({ code: 'MISSING' });
+  }
   chapSel.innerHTML = secs.map(s => `<option value="${escapeHtml(String(s.n))}">${escapeHtml(s.title)}</option>`).join('');
   renderScripture();
   // علامة 🔒 على الأقسام غير المفتوحة (لاحقًا، دون تعطيل العرض)
@@ -1967,11 +1979,6 @@ function renderAdminBooks() {
         ${b.next_open_at ? ' · أقرب فتح: ' + escapeHtml(fmtOpenDate(b.next_open_at)) : ''}
       </div>
     </div>`).join('') : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لا توجد أسفار مسجّلة بعد (شغّل 11_v1_3_migrate.sql أو أضف سفرًا).</p>';
-  const sel = $('admin-open-book');
-  const cur = sel.value;
-  sel.innerHTML = books.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.title)}</option>`).join('');
-  if (books.some(b => b.id === cur)) sel.value = cur;
-  if (!$('admin-open-date').value) $('admin-open-date').value = todayIso();
 }
 
 function adminEditBook(id) {
@@ -2009,70 +2016,32 @@ async function adminSaveBook() {
   renderAdminBooks();
 }
 
-let adminOpenRows = [];
-function renderOpenPreview() {
-  const box = $('admin-open-preview');
-  if (!adminOpenRows.length) { box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="table-wrap"><table><thead><tr><th>الأصحاح</th><th>موعد الفتح (توقيت القاهرة)</th></tr></thead><tbody>` +
-    adminOpenRows.map((r, i) => `<tr><td>${toAr(r.section)}</td><td><input type="datetime-local" class="form-control" value="${escapeHtml(r.local || '')}" onchange="adminOpenRows[${i}].local = this.value" /></td></tr>`).join('') +
-    `</tbody></table></div>`;
-}
-
-async function adminPreviewOpenings() {
-  if (!requireRole('admin', 'owner')) return;
-  const book = $('admin-open-book').value, d = $('admin-open-date').value, t = $('admin-open-time').value || '00:00';
-  if (!book) return showToast('اختر السفر', 'error');
-  if (!d) return showToast('اختر تاريخ أول فتح', 'error');
-  const r = await Sync.call('staff_preview_schedule', {
-    p_book: book, p_start: `${d}T${t}`, p_mode: $('admin-open-mode').value,
-    p_every: Math.max(1, Math.min(60, parseInt($('admin-open-every').value, 10) || 1))
-  });
-  if (!r.ok) return showToast(r.error, 'error');
-  adminOpenRows = ((r.data && r.data.rows) || []).map(x => ({ section: x.section, local: x.local }));
-  renderOpenPreview();
-  $('admin-open-actions').style.display = adminOpenRows.length ? '' : 'none';
-  showToast('هذه معاينة فقط — عدّل أي موعد ثم اضغط «حفظ المواعيد»', 'warning');
-}
-
-async function adminLoadOpenings() {
-  const book = $('admin-open-book').value;
-  if (!book) return;
-  const r = await Sync.call('book_sections', { p_book: book });
-  if (!r.ok) return showToast(r.error, 'error');
-  const secs = (r.data && r.data.sections) || [];
-  if (!secs.some(x => x.opens_at)) { adminOpenRows = []; renderOpenPreview(); showToast('هذا السفر بلا جدولة: كل أصحاحاته مفتوحة'); return; }
-  adminOpenRows = secs.map(x => ({ section: x.section, local: x.opens_at ? Sync.isoToLocal(x.opens_at) : '' }));
-  renderOpenPreview();
-  $('admin-open-actions').style.display = '';
-}
-
-async function adminSaveOpenings() {
-  if (!requireRole('admin', 'owner')) return;
-  const book = $('admin-open-book').value;
-  const rows = adminOpenRows.filter(r => r.local).map(r => ({ section: r.section, local: r.local }));
-  if (!rows.length) return showToast('لا توجد مواعيد للحفظ', 'error');
-  if (rows.length < adminOpenRows.length && !confirm('بعض الأصحاحات بلا موعد وستبقى «لم تُفتح». متابعة؟')) return;
-  const r = await Sync.call('staff_set_openings', { p_book: book, p_rows: rows });
-  if (!r.ok) return showToast(r.error, 'error');
-  showToast(`تم حفظ مواعيد ${toAr(r.data.count)} أصحاح`);
-  await Sync.pull();
-  renderAdminBooks();
-}
-
-async function adminClearOpenings() {
-  if (!requireRole('admin', 'owner')) return;
-  const book = $('admin-open-book').value;
-  if (!book || !confirm('إلغاء جدولة هذا السفر؟ ستصير كل أصحاحاته مفتوحة.')) return;
-  const r = await Sync.call('staff_set_openings', { p_book: book, p_rows: [] });
-  if (!r.ok) return showToast(r.error, 'error');
-  adminOpenRows = []; renderOpenPreview();
-  showToast('أُلغيت الجدولة');
-  await Sync.pull();
-  renderAdminBooks();
-}
-
 /* --- v1.3: أكواد الفتح (المسؤول/المالك يولّدون كودًا لخادم معيّن) --- */
 const fmtCode = c => String(c).slice(0, 5) + '-' + String(c).slice(5);
+/* v1.6: مدة الكود بالدقائق (مسار واحد: p_minutes). المدى ٥ – ١٠٠٨٠ دقيقة. */
+const UNLOCK_MIN = 5, UNLOCK_MAX = 10080, UNLOCK_UNITS = { m: 1, h: 60, d: 1440 };
+function fmtDuration(mins) {
+  const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60, out = [];
+  if (d) out.push(toAr(d) + (d === 1 ? ' يوم' : d === 2 ? ' يومين' : ' أيام'));
+  if (h) out.push(toAr(h) + (h === 1 ? ' ساعة' : h === 2 ? ' ساعتين' : h <= 10 ? ' ساعات' : ' ساعة'));
+  if (m) out.push(toAr(m) + (m <= 10 ? ' دقائق' : ' دقيقة'));
+  return out.join(' و') || '٠ دقيقة';
+}
+function readUnlockMinutes() {
+  const per = UNLOCK_UNITS[$('admin-unlock-unit').value] || 60;
+  const raw = parseInt($('admin-unlock-amount').value, 10);
+  let mins = isNaN(raw) ? 1440 : raw * per;
+  if (mins < UNLOCK_MIN || mins > UNLOCK_MAX) {
+    mins = Math.max(UNLOCK_MIN, Math.min(UNLOCK_MAX, mins));
+    showToast('المدة المسموحة من ٥ دقائق إلى ٧ أيام. ضُبطت على ' + fmtDuration(mins), 'warning');
+  }
+  return mins;
+}
+function fmtRemaining(iso) {
+  const ms = Date.parse(iso) - Sync.nowMs();
+  if (!(ms > 0)) return '';
+  return 'متبقي ' + fmtDuration(Math.max(1, Math.ceil(ms / 60000)));
+}
 
 async function renderAdminUnlock() {
   const sel = $('admin-unlock-user');
@@ -2086,7 +2055,7 @@ async function renderAdminUnlock() {
   const rows = Array.isArray(r.data) ? r.data : [];
   const lbl = { active: '<span class="badge badge-green">فعّال</span>', used: '<span class="badge badge-gold">مستعمل</span>', expired: '<span class="badge badge-red">منتهي</span>' };
   list.innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>الخادم</th><th>الكود</th><th>الحالة</th><th>ينتهي</th><th></th></tr></thead><tbody>` +
-    rows.map(k => `<tr><td>${escapeHtml(k.user_name)}</td><td dir="ltr"><strong>${escapeHtml(fmtCode(k.code))}</strong></td><td>${lbl[k.state] || ''}</td><td>${escapeHtml(fmtOpenDate(k.expires_at))}</td>
+    rows.map(k => `<tr><td>${escapeHtml(k.user_name)}</td><td dir="ltr"><strong>${escapeHtml(fmtCode(k.code))}</strong></td><td>${lbl[k.state] || ''}</td><td>${escapeHtml(fmtOpenDate(k.expires_at))}${k.state === 'active' ? `<div style="font-size:0.74rem; color:var(--text-muted);">${escapeHtml(fmtRemaining(k.expires_at))}</div>` : ''}</td>
       <td>${k.state === 'active' ? `<button class="btn btn-outline btn-sm" onclick="adminRevokeUnlock(${jsArg(k.id)})">إلغاء</button>` : ''}</td></tr>`).join('') +
     `</tbody></table></div>` : '<p style="text-align:center; color:var(--text-muted); padding:14px;">لم تُولَّد أكواد لهذه المسابقة بعد.</p>';
 }
@@ -2095,12 +2064,12 @@ async function adminCreateUnlock() {
   if (!requireRole('admin', 'owner')) return;
   const uid = $('admin-unlock-user').value;
   if (!UUID_RE.test(uid)) return showToast('اختر الخادم أولًا', 'error');
-  const hours = Math.max(1, Math.min(168, parseInt($('admin-unlock-hours').value, 10) || 24));
-  const r = await Sync.call('admin_create_unlock_code', { p_user: uid, p_hours: hours });
+  const mins = readUnlockMinutes();
+  const r = await Sync.call('admin_create_unlock_code', { p_user: uid, p_minutes: mins });
   if (!r.ok) return showToast(r.error, 'error');
   const d = r.data || {};
   const box = $('admin-unlock-new');
-  box.innerHTML = `🔑 كود <strong>${escapeHtml(d.user_name || '')}</strong>: <strong dir="ltr" style="font-size:1.15rem; letter-spacing:1px;">${escapeHtml(fmtCode(d.code || ''))}</strong><br>صالح لمرة واحدة حتى ${escapeHtml(fmtOpenDate(d.expires_at))}.
+  box.innerHTML = `🔑 كود <strong>${escapeHtml(d.user_name || '')}</strong>: <strong dir="ltr" style="font-size:1.15rem; letter-spacing:1px;">${escapeHtml(fmtCode(d.code || ''))}</strong><br>صالح لمدة ${escapeHtml(fmtDuration(mins))} — ينتهي ${escapeHtml(fmtOpenDate(d.expires_at))}. صالح لمرة واحدة.
     <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="navigator.clipboard && navigator.clipboard.writeText(${jsArg(fmtCode(d.code || ''))}).then(() => showToast('تم نسخ الكود'))">📋 نسخ</button></div>`;
   box.style.display = '';
   renderAdminUnlock();
