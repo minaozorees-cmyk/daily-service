@@ -521,6 +521,14 @@ function versesHtml(verses) {
   return (verses || []).map((v, i) => `<p style="margin-bottom:10px;"><span class="verse-num">${i + 1}</span> ${escapeHtml(v)}</p>`).join('');
 }
 
+/* v1.7: وحدة الأجبية (blocks) تُعرض بعناوين أقسامها ونصوصها؛ الأسفار العادية بالآيات */
+function blocksHtml(blocks) {
+  const para = t => String(t || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean)
+    .map(x => `<p style="margin-bottom:10px;">${escapeHtml(x).replace(/\n/g, '<br>')}</p>`).join('');
+  return (blocks || []).map(b => `<div class="prayer-block"><div class="prayer-block-title">${escapeHtml(b.title)}</div>${para(b.text)}</div>`).join('');
+}
+function chapterHtml(ch) { return ch && ch.blocks ? blocksHtml(ch.blocks) : versesHtml(ch ? ch.verses : []); }
+
 /* حجب الأصحاحات غير المفتوحة — في الواجهة فقط (تجربة مستخدم؛ ملفات books/ عامة).
    الحالة من السيرفر book_sections (مواعيد الفتح بوقت السيرفر). المسؤول/المالك يرون كل شيء.
    لو تعذّر التحقق (أوفلاين ولا نسخة محفوظة) يُحجب القسم احتياطًا. */
@@ -600,7 +608,7 @@ async function renderTaskReading(plan) {
     const ch = book.chapters[String(plan.section)];
     if (!ch) return done(muted(`نص «${plan.reading}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.`) + openLink('openBible', '📖 فتح قسم القراءة'));
     done(`<div style="font-weight:800; color:var(--primary); margin-bottom:10px;">${escapeHtml(book.title)} — ${escapeHtml(ch.title)}</div>
-       <div class="scripture-text">${versesHtml(ch.verses)}</div>` + openLink('openBible', '📖 فتح في قسم القراءة'));
+       <div class="scripture-text">${chapterHtml(ch)}</div>` + openLink('openBible', '📖 فتح في قسم القراءة'));
   } catch (e) {
     if (e && e.code === 'MISSING') return done(muted(`نص «${plan.reading}» غير متوفر داخل التطبيق بعد. يمكنك تصفح الأسفار المتاحة من قسم القراءة.`) + openLink('openBible', '📖 فتح قسم القراءة'));
     done(readingErrorHtml(e) + openLink('openBible', '📖 فتح قسم القراءة'));
@@ -654,7 +662,7 @@ async function renderPrayerText() {
     const book = await Books.load('agpeya');
     if (seq !== prayerTextSeq) return;
     const ch = book.chapters[key];
-    box.innerHTML = ch ? versesHtml(ch.verses) : readingErrorHtml({ code: 'MISSING' });
+    box.innerHTML = ch ? chapterHtml(ch) : readingErrorHtml({ code: 'MISSING' });
   } catch (e) {
     if (seq === prayerTextSeq) box.innerHTML = readingErrorHtml(e);
   }
@@ -886,7 +894,7 @@ async function renderScripture() {
     const book = await Books.load(id);
     if (seq !== readingSeq) return;
     const ch = book.chapters[key];
-    disp.innerHTML = ch ? versesHtml(ch.verses) : readingErrorHtml({ code: 'MISSING' });
+    disp.innerHTML = ch ? chapterHtml(ch) : readingErrorHtml({ code: 'MISSING' });
   } catch (e) {
     if (seq === readingSeq) disp.innerHTML = readingErrorHtml(e);
   }

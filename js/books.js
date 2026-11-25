@@ -1,10 +1,13 @@
 'use strict';
-/* الخدمة اليومية v1.6 — تحميل نصوص القراءة عند الطلب (lazy) من مجلد books/ بالصيغة الجديدة الوحيدة.
+/* الخدمة اليومية v1.7 — تحميل نصوص القراءة عند الطلب (lazy) من مجلد books/ بصيغتين مقبولتين (Flexible Parser):
    - books/index.json: { rev, books: [ { id, title, testament?, rev?, kind? } ] } — لا sections ولا file.
-   - books/<id>.json: { id, title, testament?, kind?, titles?, chapters: [ { n, verses: [ [رقم, نص], ... ] } ] }
+   - (أ) سفر عادي: { id, title, testament?, kind?, titles?, chapters: [ { n, verses: [ [رقم, نص], ... ] } ] }
+   - (ب) أجبية: { title, hours: [ { id, title, sections: [ { title, content } ] } ] } — الساعة = وحدة قراءة، والقسم بعنوانه ونصه.
+     لو وُجد chapters وhours معًا يُعتمد chapters. ملف hours يُعامَل kind='agpeya' دائمًا، و id فيه اختياري (لو وُجد لازم يطابق).
    - الصيغة القديمة (chapters ككائن) تُرفض بالخطأ BAD، بلا fallback.
    - Books.load(id) يحوّل داخليًا إلى الشكل الذي يستعمله app.js:
-       { id, title, kind, testament, chapters: { "n": { title, verses: [نصوص] } }, sections: [ { n, title } ] }
+       { id, title, kind, testament, chapters: { "n": { title, verses: [نصوص], blocks?: [ { title, text } ] } }, sections: [ { n, title } ] }
+     (blocks موجودة لوحدات الأجبية فقط؛ verses فيها فاضية)
    الواجهة: index() · load(id) · sections(id) · inspect(id) · chapterTitle(id, n) · reset() */
 var Books = (function () {
   var BASE = 'books/';
@@ -28,8 +31,23 @@ var Books = (function () {
         (b.rev == null || (typeof b.rev === 'number' && isFinite(b.rev)));
     });
   }
+  function isHours(d) { return !!d && !Array.isArray(d.chapters) && Array.isArray(d.hours); }
+  function hourNum(h, i) { return Number.isInteger(h && h.id) ? h.id : i + 1; }
+  function validHours(d) {
+    var seen = {};
+    return d.hours.every(function (h, i) {
+      var n = hourNum(h, i);
+      if (!h || typeof h !== 'object' || n < 1 || n > 400 || seen[n] || typeof h.title !== 'string' || !h.title.trim()) return false;
+      seen[n] = 1;
+      return Array.isArray(h.sections) && h.sections.length > 0 && h.sections.every(function (s) {
+        return s && typeof s === 'object' && typeof s.title === 'string' && typeof s.content === 'string';
+      });
+    });
+  }
   function validBook(d, id) {
-    if (!d || typeof d !== 'object' || d.id !== id || typeof d.title !== 'string' || !Array.isArray(d.chapters)) return false;
+    if (!d || typeof d !== 'object' || typeof d.title !== 'string') return false;
+    if (isHours(d)) return (d.id === undefined || d.id === id) && validHours(d);
+    if (d.id !== id || !Array.isArray(d.chapters)) return false;
     if (d.kind != null && d.kind !== 'bible' && d.kind !== 'agpeya') return false;
     if (d.testament != null && d.testament !== 'ot' && d.testament !== 'nt') return false;
     var seen = {};
@@ -45,7 +63,16 @@ var Books = (function () {
     return (d.kind === 'agpeya' ? 'الصلاة ' : 'الأصحاح ') + toAr(n);
   }
   /* الشكل الداخلي. الأقسام مرتبة بالرقم، والآيات تُعرض بترتيب القائمة. */
-  function convert(d) {
+  function convert(d, id) {
+    if (isHours(d)) {
+      var hc = {}, hs = [];
+      d.hours.map(function (h, i) { return { n: hourNum(h, i), h: h }; }).sort(function (a, b) { return a.n - b.n; }).forEach(function (x) {
+        var title = x.h.title.trim();
+        hc[String(x.n)] = { title: title, verses: [], blocks: x.h.sections.map(function (s) { return { title: s.title.trim(), text: s.content }; }) };
+        hs.push({ n: x.n, title: title });
+      });
+      return { id: id, title: d.title, kind: 'agpeya', testament: null, chapters: hc, sections: hs };
+    }
     var kind = d.kind || 'bible', chapters = {}, sections = [];
     d.chapters.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (c) {
       var title = secTitle({ titles: d.titles, kind: kind }, c.n);
@@ -82,7 +109,7 @@ var Books = (function () {
   function load(id) {
     if (mem[id]) return Promise.resolve(mem[id]);
     if (loading[id]) return loading[id];
-    var p = fetchBook(id).then(function (d) { var b = convert(d); mem[id] = b; return b; });
+    var p = fetchBook(id).then(function (d) { var b = convert(d, id); mem[id] = b; return b; });
     loading[id] = p;
     var done = function () { delete loading[id]; };
     p.then(done, done);
@@ -94,15 +121,16 @@ var Books = (function () {
   /* يفحص ملفًا ويعيد تقريرًا بلا تخزينه في الذاكرة: { id, title, kind, testament, count, ok, problems[] } */
   function inspect(id) {
     return fetchBook(id, true).then(function (d) {
-      var ns = d.chapters.map(function (c) { return c.n; }).sort(function (a, b) { return a - b; });
+      var hours = isHours(d);
+      var ns = hours ? d.hours.map(hourNum).sort(function (a, b) { return a - b; }) : d.chapters.map(function (c) { return c.n; }).sort(function (a, b) { return a - b; });
       var problems = [];
       if (!ns.length) problems.push('لا توجد أقسام');
       for (var i = 0; i < ns.length; i++) if (ns[i] !== i + 1) { problems.push('أرقام الأقسام غير متتابعة (متوقع ' + (i + 1) + ' وجاء ' + ns[i] + ')'); break; }
-      d.chapters.forEach(function (c) {
+      if (!hours) d.chapters.forEach(function (c) {
         if (!c.verses.length) problems.push('القسم ' + c.n + ' بلا آيات');
         else if (c.verses.some(function (v) { return !v[1].trim(); })) problems.push('القسم ' + c.n + ' فيه آية فاضية');
       });
-      return { id: id, title: d.title, kind: d.kind || 'bible', testament: d.testament || null, count: ns.length, ok: problems.length === 0, problems: problems.slice(0, 5) };
+      return { id: id, title: d.title, kind: hours ? 'agpeya' : (d.kind || 'bible'), testament: hours ? null : (d.testament || null), count: ns.length, ok: problems.length === 0, problems: problems.slice(0, 5) };
     }).catch(function (e) {
       var msg = e && e.code === 'MISSING' ? 'الملف غير موجود' : e && e.code === 'BAD' ? 'الصيغة غير صالحة (أو الصيغة القديمة)' : e && e.code === 'OFFLINE' ? 'لا يوجد اتصال' : 'تعذّر تحميل الملف';
       return { id: id, ok: false, count: 0, problems: [msg] };
