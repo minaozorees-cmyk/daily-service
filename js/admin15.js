@@ -1,6 +1,6 @@
 'use strict';
 /* الخدمة اليومية v1.5 (الدرج بستايل v1.6) — واجهة الإدارة الإضافية:
-   - درج القائمة الجانبية (بجانب الشريط الأفقي، لا بدلًا منه)
+   - درج القائمة الجانبية (بجانب الشريط الأفقي، لا بدلًا منه) — v2.0.7: أزرار بشكل راديو Uiverse + سحب بالإصبع
    - توزيع الخطة (معاينة ثم تنفيذ) — دالة السيرفر staff_plan_bulk
    - كروت الحسابات + تعديل البيانات — admin_update_profile
    - نسخة شاملة + استعادة بيانات الخدام + منطقة الخطر (مسح) للمالك
@@ -30,8 +30,8 @@
     live: '<path d="M8 4h8v5a4 4 0 0 1-8 0V4Z"/><path d="M8 6H5a2 2 0 0 0 2 4M16 6h3a2 2 0 0 1-2 4M12 13v4M8.5 20h7"/>',
     tracking: '<path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/>',
     accounts: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3 3 0 0 1 0 5.6M18 14.2A5.5 5.5 0 0 1 21 19"/>',
-    moderation: '<path d="M12 3.5 5 6.2V12c0 4 3 6.6 7 8.5 4-1.9 7-4.5 7-8.5V6.2L12 3.5Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
     activity: '<path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 12h6M9 16h3.5"/>',
+    moderation: '<path d="M12 3.5 5 6.2V12c0 4 3 6.6 7 8.5 4-1.9 7-4.5 7-8.5V6.2L12 3.5Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
     json: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
     backup: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'
   };
@@ -42,6 +42,9 @@
     const a = document.querySelector('#admin-sub-nav .sub-btn.active');
     return a ? a.getAttribute('data-panel') : '';
   }
+  /* From Uiverse.io by 00Kubi - https://uiverse.io/00Kubi/smooth-pug-7
+     MIT License, Copyright (c) 00Kubi (Kubi), 00Kubi (Kubi)
+     (بنية الراديو: label.drawer-item > input[type=radio] + span.drawer-name — التنسيق في آخر css/app.css) */
   function drawerHtml() {
     const act = activePanel();
     return GROUPS.filter((g) => !g.owner || isOwner()).map((g, i) => `
@@ -49,8 +52,8 @@
         <button type="button" class="drawer-group-btn" aria-expanded="${folded[i] ? 'false' : 'true'}" onclick="adminDrawerFold(${i})">
           <span>${escapeHtml(g.t)}</span><span aria-hidden="true">${folded[i] ? '▸' : '▾'}</span>
         </button>
-        <div class="drawer-group-items" ${folded[i] ? 'hidden' : ''}>
-          ${g.items.map((it) => `<button type="button" class="drawer-item ${it[0] === act ? 'active' : ''}" ${it[0] === act ? 'aria-current="true"' : ''} onclick="adminDrawerGo(${jsArg(it[0])})"><span class="drawer-ico">${icon(it[0])}</span><span class="drawer-lbl">${escapeHtml(it[1])}</span></button>`).join('')}
+        <div class="drawer-group-items drawer-radios" role="radiogroup" aria-label="${escapeHtml(g.t)}" ${folded[i] ? 'hidden' : ''}>
+          ${g.items.map((it) => `<label class="drawer-item ${it[0] === act ? 'active' : ''}"><input type="radio" name="admin-drawer-panel" value="${escapeHtml(it[0])}" ${it[0] === act ? 'checked' : ''} onclick="adminDrawerGo(${jsArg(it[0])})" /><span class="drawer-name">${escapeHtml(it[1])}</span></label>`).join('')}
         </div>
       </div>`).join('');
   }
@@ -76,13 +79,50 @@
     $('admin-drawer-body').innerHTML = drawerHtml();
   };
   window.adminDrawerGo = function (panel) {
-    if (panel === 'json' || panel === 'backup') { if (!requireRole('owner')) return; }
+    if (panel === 'json' || panel === 'backup') {
+      if (!requireRole('owner')) { $('admin-drawer-body').innerHTML = drawerHtml(); return; }
+    }
     const btn = document.querySelector('#admin-sub-nav .sub-btn[data-panel="' + panel + '"]');
     if (!btn) return;
-    window.adminDrawerClose();
     window.switchAdminSub(panel, btn);
     try { btn.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) { /* لا يهم */ }
+    document.querySelectorAll('#admin-drawer-body .drawer-item').forEach((l) => { const r = l.querySelector('input'); l.classList.toggle('active', !!(r && r.checked)); });
+    /* v2.0.7: تأخير الإغلاق قليلًا ليظهر تحريك الاختيار (راديو Uiverse)؛ بلا تأخير مع «تقليل الحركة» */
+    const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) window.adminDrawerClose(); else setTimeout(window.adminDrawerClose, 320);
   };
+
+  /* v2.0.7: السحب بالإصبع — من اليمين لليسار في أي مكان يفتح الدرج، ومن اليسار لليمين يغلقه.
+     يعمل داخل تبويب الإدارة فقط ولمن يحق له (isStaff). لا يلتقط السحب فوق الحقول وشريط التبويبات الأفقي
+     وأي عنصر يتمرّر أفقيًا (حتى لا يتعارض معها). لا preventDefault: التمرير الرأسي لا يتأثر. */
+  const SW = { x: 0, y: 0, t: 0, on: false };
+  function swInAdmin() { const t = $('tab-admin'); return !!t && t.classList.contains('active'); }
+  function swDrawerOpen() { const d = $('admin-drawer'); return !!d && d.classList.contains('open'); }
+  function swBlocked(el) {
+    for (; el && el !== document.body && el.nodeType === 1; el = el.parentElement) {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable) return true;
+      const ox = getComputedStyle(el).overflowX;
+      if ((ox === 'auto' || ox === 'scroll') && el.scrollWidth > el.clientWidth + 2) return true;
+    }
+    return false;
+  }
+  document.addEventListener('touchstart', (e) => {
+    SW.on = false;
+    if (e.touches.length !== 1 || !isStaff()) return;
+    if (!swDrawerOpen() && !swInAdmin()) return;
+    if (!swDrawerOpen() && swBlocked(e.target)) return;
+    const t = e.touches[0];
+    SW.x = t.clientX; SW.y = t.clientY; SW.t = Date.now(); SW.on = true;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!SW.on) return; SW.on = false;
+    const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+    const dx = t.clientX - SW.x, dy = t.clientY - SW.y;
+    if (Date.now() - SW.t > 900 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+    if (!swDrawerOpen() && dx < 0) window.adminDrawerOpen();
+    else if (swDrawerOpen() && dx > 0) window.adminDrawerClose();
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { SW.on = false; }, { passive: true });
 
   /* خطاف: تبديل اللوحات (الدالة الأصلية تبقى كما هي) */
   const origSwitch = window.switchAdminSub;
