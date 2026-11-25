@@ -10,7 +10,9 @@ on:
     - cron: '0 6 * * 1,4'   # الإثنين والخميس 6 صباحًا UTC
   workflow_dispatch:         # تشغيل يدوي من تبويب Actions
 
-permissions: {}
+# صلاحيات الكتابة ضرورية عشان نقدر نعمل Commit أوتوماتيكي
+permissions:
+  contents: write
 
 concurrency:
   group: keep-supabase-alive
@@ -21,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: سحب الكود (Checkout)
+        uses: actions/checkout@v4
+
       - name: فحص Supabase (Auth + قراءة من قاعدة البيانات)
         env:
           URL: ${{ secrets.SUPABASE_URL }}
@@ -51,3 +56,13 @@ jobs:
           check "Auth health"    "/auth/v1/health" '^200$'
           # 401/403 = قاعدة البيانات شغّالة لكن RLS رافض للـ anon — الفشل الحقيقي 5xx أو انقطاع
           check "قراءة profiles" "/rest/v1/profiles?select=id&limit=1" '^(200|401|403)$'
+
+      - name: تحديث نشاط المستودع تلقائيًا (لمنع إيقاف GitHub)
+        run: |
+          mkdir -p .github
+          date -u > .github/last-activity.txt
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add .github/last-activity.txt
+          git commit -m "chore: auto keep-alive commit" || exit 0
+          git push
