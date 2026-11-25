@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=2.0.3" />
+  <link rel="stylesheet" href="css/app.css?v=2.0.4" />
 </head>
 <body>
 
@@ -378,7 +378,7 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title" id="reading-title">📖 الكتاب المقدس</div>
-            <div style="display:flex; gap:6px;">
+            <div id="reading-fs-top" style="display:flex; gap:6px;">
               <button class="btn btn-outline btn-sm" onclick="changeFontSize(-1)">A-</button>
               <button class="btn btn-outline btn-sm" onclick="changeFontSize(1)">A+</button>
             </div>
@@ -404,8 +404,17 @@
               <select id="bible-chapter-select" class="form-control" onchange="renderScripture()"></select>
             </div>
             <div id="reading-section-wrap" style="display:none;">
-              <label class="form-label">اختر القسم:</label>
+              <label class="form-label">القسم:</label>
               <select id="ag-section-select" class="form-control" onchange="agpeyaShow()"></select>
+            </div>
+          </div>
+          <div id="ag-head" class="ag-head" style="display:none;">
+            <div id="ag-title" class="ag-title"></div>
+            <div id="ag-hour" class="ag-hour"></div>
+            <div class="ag-fs">
+              <button class="btn btn-outline btn-sm" onclick="changeFontSize(-1)">أ-</button>
+              <span>حجم الخط</span>
+              <button class="btn btn-outline btn-sm" onclick="changeFontSize(1)">أ+</button>
             </div>
           </div>
           <div id="scripture-display" class="scripture-text"></div>
@@ -930,18 +939,18 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=2.0.3"></script>
-<script src="js/config.js?v=2.0.3"></script>
-<script src="js/supa.js?v=2.0.3"></script>
-<script src="js/auth.js?v=2.0.3"></script>
-<script src="js/sync.js?v=2.0.3"></script>
-<script src="js/books.js?v=2.0.3"></script>
-<script src="js/xlsx-lite.js?v=2.0.3"></script>
-<script src="js/app.js?v=2.0.3"></script>
-<script src="js/admin15.js?v=2.0.3"></script>
-<script src="js/admin16.js?v=2.0.3"></script>
-<script src="js/admin20.js?v=2.0.3"></script>
-<script src="js/update.js?v=2.0.3"></script>
-<script src="js/pwa.js?v=2.0.3"></script>
+<script src="js/version.js?v=2.0.4"></script>
+<script src="js/config.js?v=2.0.4"></script>
+<script src="js/supa.js?v=2.0.4"></script>
+<script src="js/auth.js?v=2.0.4"></script>
+<script src="js/sync.js?v=2.0.4"></script>
+<script src="js/books.js?v=2.0.4"></script>
+<script src="js/xlsx-lite.js?v=2.0.4"></script>
+<script src="js/app.js?v=2.0.4"></script>
+<script src="js/admin15.js?v=2.0.4"></script>
+<script src="js/admin16.js?v=2.0.4"></script>
+<script src="js/admin20.js?v=2.0.4"></script>
+<script src="js/update.js?v=2.0.4"></script>
+<script src="js/pwa.js?v=2.0.4"></script>
 </body>
 </html>
