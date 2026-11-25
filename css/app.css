@@ -1799,3 +1799,12 @@
 /* v1.7: أقسام الأجبية (عنوان + نص) */
 .prayer-block { margin-bottom: 16px; }
 .prayer-block-title { font-weight: 800; color: var(--primary); margin: 0 0 6px; font-size: 0.95rem; }
+
+/* v2.0: شعار اليوم (طويل) + معاينة الشواهد */
+.hero-verse-quote.long { font-size: 0.9rem; line-height: 1.95; }
+.slogan-now { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-alt); border: 1px solid var(--border); font-size: 0.9rem; line-height: 1.8; }
+.slogan-list { max-height: 52vh; overflow-y: auto; margin-top: 8px; }
+.slogan-card { border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface-alt); }
+.slogan-card.slogan-warn { border-color: var(--gold, #f59e0b); }
+.slogan-meta { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+.slogan-text { font-size: 0.92rem; line-height: 1.9; }
