@@ -1818,3 +1818,6 @@
 .ag-hour { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px; }
 .ag-fs { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.85rem; color: var(--text-muted); }
 .ag-fs .btn { min-width: 64px; }
+.ag-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.ag-nav .btn { padding: 14px 10px; font-size: 1rem; }
+.ag-nav .btn:disabled { opacity: 0.4; cursor: default; }
