@@ -1,12 +1,13 @@
+# Keep-Alive لمشروع Supabase المجاني: طلب خفيف كل ٣ أيام عشان المشروع ما يتوقفش بعد أسبوع خمول.
 name: keep-supabase-alive
 
 on:
   schedule:
-    - cron: '0 6 * * 1,4'   # الإثنين والخميس 6 صباحًا UTC
+    - cron: '0 6 * * 1,4'   # الإثنين والخميس 6 صباحًا UTC (أو '0 0 */3 * *' لو تحب كل 3 أيام)
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: keep-supabase-alive
@@ -17,62 +18,56 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: سحب الكود (Checkout)
-        uses: actions/checkout@v4
-
-      - name: فحص Supabase (Auth + RPC)
+      - name: Ping Supabase (rpc/keepalive)
         env:
-          URL: ${{ secrets.SUPABASE_URL }}
-          KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          set -uo pipefail
-          if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
-            echo "::error::ضيف SUPABASE_URL و SUPABASE_ANON_KEY في Secrets"; exit 1
+          set -u
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_ANON_KEY غير مضبوطة"
+            exit 1
           fi
-          
-          case "${URL}" in https://*) ;; *) echo "::error::SUPABASE_URL لازم يبدأ بـ https://"; exit 1 ;; esac
-          
-          base="${URL%/}"
+          case "${SUPABASE_URL}" in https://*) ;; *) echo "::error::SUPABASE_URL لازم يبدأ بـ https://"; exit 1 ;; esac
+          base="${SUPABASE_URL%/}"
           : > response.json
-
-          check() {
-            local name="$1" method="$2" path="$3"
-            local code
-            if [ "$method" = "POST" ]; then
-               code=$(curl -sS -o response.json -w '%{http_code}' --retry 3 --retry-delay 10 --max-time 30 \
-                 -X POST "${base}${path}" -H "apikey: ${KEY}" -H "Authorization: Bearer ${KEY}" \
-                 -H "Content-Type: application/json" -d '{}' || true)
-            else
-               code=$(curl -sS -o response.json -w '%{http_code}' --retry 3 --retry-delay 10 --max-time 30 \
-                 -H "apikey: ${KEY}" -H "Authorization: Bearer ${KEY}" "${base}${path}" || true)
-            fi
-            
-            [ -z "$code" ] && code="000"
-            echo "$name → HTTP $code"
-            if [ "$code" != "200" ]; then
-              echo "::error::$name فشل (HTTP $code) — تأكد أن المشروع غير متوقف والمفتاح صحيح"
-              head -c 300 response.json || true; echo
-              return 1
-            fi
-          }
-
-          # 1. فحص السيرفر الأساسي
-          check "Auth health" "GET" "/auth/v1/health"
-          
-          # 2. ضرب الداتابيز بجد عن طريق دالة الـ RPC
-          check "RPC keepalive" "POST" "/rest/v1/rpc/keepalive"
-
-      - name: تحديث نشاط المستودع تلقائيًا
-        continue-on-error: true
-        run: |
-          mkdir -p .github
-          date -u > .github/last-activity.txt
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
-          git add .github/last-activity.txt
-          if git diff --cached --quiet; then
-            echo "مفيش تغيير، تخطي الـ commit."
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 30 --retry 3 --retry-delay 5 \
+            -X POST \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "${base}/rest/v1/rpc/keepalive") || code="000"
+          [ -z "${code}" ] && code="000"
+          echo "HTTP status: ${code}"
+          if [ "${code}" = "200" ]; then
+            echo "OK: Supabase رد بنجاح (الطلب وصل لقاعدة البيانات)."
             exit 0
           fi
-          git commit -m "chore: auto keep-alive commit [skip ci]"
-          git push || echo "::warning::فشل الـ push (ممكن بسبب branch protection) - ده مش هيأثر على فحص Supabase."
+          echo "::error::Supabase رجّع HTTP ${code} (401/403 = المفتاح غلط أو الدالة keepalive مش متعمّلة؛ 000 = مفيش اتصال)"
+          head -c 500 response.json 2>/dev/null || true
+          echo
+          exit 1
+
+  # ── اختياري: احذف الجوب ده كله لو الريبو private ──
+  activity:
+    needs: ping
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: write
+    steps:
+      - name: سحب الكود
+        uses: actions/checkout@v4
+
+      - name: تحديث ملف النشاط
+        run: |
+          mkdir -p .github
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/last-activity.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/last-activity.txt
+          git commit -m "chore: keep-alive activity [skip ci]"
+          git push
