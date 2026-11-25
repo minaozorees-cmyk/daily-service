@@ -1,5 +1,5 @@
 {
- "rev": 1,
+ "rev": 2,
  "books": [
   {"id": "gen", "title": "التكوين", "testament": "ot", "rev": 1},
   {"id": "exo", "title": "الخروج", "testament": "ot", "rev": 1},
@@ -74,6 +74,6 @@
   {"id": "joh3", "title": "يوحنا الثالثة", "testament": "nt", "rev": 1},
   {"id": "jud", "title": "يهوذا", "testament": "nt", "rev": 1},
   {"id": "rev", "title": "الرؤيا", "testament": "nt", "rev": 1},
-  {"id": "agpeya", "title": "الأجبية", "kind": "agpeya", "rev": 1}
+  {"id": "agpeya", "title": "الأجبية", "kind": "agpeya", "rev": 2}
  ]
 }
