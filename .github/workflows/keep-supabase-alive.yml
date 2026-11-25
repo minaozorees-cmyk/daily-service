@@ -1,0 +1,53 @@
+# يرسل طلب قراءة لـ Supabase مرتين أسبوعيًا حتى لا يتوقف المشروع المجاني بعد أسبوع بلا نشاط،
+# ويفشل (فيصلك إيميل من GitHub) لو Supabase متوقف أو فيه مشكلة.
+# الإعداد: Settings ← Secrets and variables ← Actions ← New repository secret:
+#   SUPABASE_URL       مثل https://xxxx.supabase.co   (بلا / في الآخر)
+#   SUPABASE_ANON_KEY  مفتاح anon (publishable) — نفس الموجود في js/config.js
+name: keep-supabase-alive
+
+on:
+  schedule:
+    - cron: '0 6 * * 1,4'   # الإثنين والخميس 6 صباحًا UTC
+  workflow_dispatch:         # تشغيل يدوي من تبويب Actions
+
+permissions: {}
+
+concurrency:
+  group: keep-supabase-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: فحص Supabase (Auth + قراءة من قاعدة البيانات)
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
+            echo "::error::ضيف SUPABASE_URL و SUPABASE_ANON_KEY في Secrets"; exit 1
+          fi
+          URL="${URL%/}"
+          : > /tmp/body
+
+          check() {  # الاسم، المسار، الأكواد المقبولة (regex)
+            local name="$1" path="$2" ok="$3" code
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' \
+              --retry 3 --retry-delay 10 --retry-all-errors --max-time 30 \
+              -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+              "$URL$path" || true)
+            [ -z "$code" ] && code=000
+            echo "$name → HTTP $code"
+            if ! printf '%s' "$code" | grep -Eq "$ok"; then
+              echo "::error::$name فشل (HTTP $code) — تأكد أن المشروع غير متوقف في لوحة Supabase"
+              head -c 300 /tmp/body || true; echo
+              return 1
+            fi
+          }
+
+          check "Auth health"    "/auth/v1/health" '^200$'
+          # 401/403 = قاعدة البيانات شغّالة لكن RLS رافض للـ anon — الفشل الحقيقي 5xx أو انقطاع
+          check "قراءة profiles" "/rest/v1/profiles?select=id&limit=1" '^(200|401|403)$'
