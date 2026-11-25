@@ -945,28 +945,43 @@ function setReadingMode(mode) {
   updateChapterSelector();
 }
 
-/* v2.0.4: الأجبية — قائمتان في صف واحد (الصلاة | القسم)، قسم واحد في كل مرة، وتحتهما عنوان القسم واسم الصلاة وصف حجم الخط */
+/* v2.0.5: الأجبية — قائمتان في صف واحد (الصلاة | القسم). «الصلاة كلها» (الافتراضي) تعرض كل الأقسام؛
+   اختيار قسم يعرضه وحده مع زرّي السابق/التالي في الأسفل. */
 let agpeyaCur = null;
 function agpeyaReset() {
   agpeyaCur = null;
   $('ag-section-select').innerHTML = '';
   $('ag-head').style.display = 'none';
+  $('ag-nav').style.display = 'none';
 }
 function agpeyaFill(ch) {
   agpeyaCur = ch;
   const sel = $('ag-section-select');
-  sel.innerHTML = (ch.blocks || []).map((b, i) => `<option value="${i}">${escapeHtml(b.title)}</option>`).join('');
-  sel.value = '0';
+  sel.innerHTML = `<option value="all">— الصلاة كلها —</option>` + (ch.blocks || []).map((b, i) => `<option value="${i}">${escapeHtml(b.title)}</option>`).join('');
+  sel.value = 'all';
   agpeyaShow();
 }
 function agpeyaShow() {
-  const disp = $('scripture-display'), blocks = agpeyaCur && agpeyaCur.blocks || [];
-  const b = blocks[Number($('ag-section-select').value)];
-  $('ag-head').style.display = b ? '' : 'none';
-  if (!b) { disp.innerHTML = readingErrorHtml({ code: 'MISSING' }); return; }
-  $('ag-title').textContent = b.title;
-  $('ag-hour').textContent = agpeyaCur.title;
-  disp.innerHTML = blocksHtml([b]);
+  const disp = $('scripture-display'), blocks = agpeyaCur && agpeyaCur.blocks || [], v = $('ag-section-select').value;
+  const one = v !== 'all' ? blocks[Number(v)] : null;
+  $('ag-head').style.display = blocks.length ? '' : 'none';
+  if (!blocks.length) { $('ag-nav').style.display = 'none'; disp.innerHTML = readingErrorHtml({ code: 'MISSING' }); return; }
+  $('ag-title').textContent = one ? one.title : agpeyaCur.title;
+  $('ag-hour').textContent = one ? agpeyaCur.title : '';
+  $('ag-hour').style.display = one ? '' : 'none';
+  disp.innerHTML = blocksHtml(one ? [one] : blocks);
+  $('ag-nav').style.display = one ? '' : 'none';
+  if (one) {
+    $('ag-prev').disabled = Number(v) <= 0;
+    $('ag-next').disabled = Number(v) >= blocks.length - 1;
+  }
+}
+function agpeyaStep(d) {
+  const sel = $('ag-section-select'), n = agpeyaCur && agpeyaCur.blocks ? agpeyaCur.blocks.length : 0, i = Number(sel.value) + d;
+  if (sel.value === 'all' || i < 0 || i >= n) return;
+  sel.value = String(i);
+  agpeyaShow();
+  const t = $('reading-selectors'); if (t && t.scrollIntoView) t.scrollIntoView({ block: 'start' });
 }
 
 function openBible() {
