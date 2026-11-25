@@ -1809,3 +1809,12 @@
 .slogan-meta { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
 .slogan-text { font-size: 0.92rem; line-height: 1.9; }
 
+/* v2.0.4: الأجبية — صف القائمتين وعنوان القسم وصف حجم الخط */
+#reading-selectors.ag-mode .form-label { display: none; }
+#reading-selectors.ag-mode .form-control { text-overflow: ellipsis; font-size: 0.78rem; padding-inline: 8px 8px; }
+#reading-selectors.ag-mode { gap: 8px; }
+.ag-head { margin-bottom: 14px; }
+.ag-title { font-size: 1.5rem; font-weight: 800; color: var(--primary); line-height: 1.5; margin: 6px 0 2px; }
+.ag-hour { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px; }
+.ag-fs { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.85rem; color: var(--text-muted); }
+.ag-fs .btn { min-width: 64px; }
