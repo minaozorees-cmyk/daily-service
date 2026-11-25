@@ -66,7 +66,8 @@ const Auth = (function () {
       status: p.status,
       active: p.status === 'active',
       lastLogin: p.last_login_at || null,
-      createdAt: p.created_at || null
+      createdAt: p.created_at || null,
+      mustChange: !!p.must_change_password   // v2.0.6: عليه كلمة مرور مؤقتة لم يغيّرها بعد
     };
   }
   function setSession(d) {
@@ -100,6 +101,7 @@ const Auth = (function () {
     if (m.indexOf('self_action') !== -1) return 'لا يمكنك تنفيذ هذا الإجراء على حسابك الشخصي.';
     if (m.indexOf('not_found') !== -1) return 'هذا الحساب لم يعد موجودًا.';
     if (m.indexOf('bad_input') !== -1) return 'بيانات غير صالحة.';
+    if (m.indexOf('not_changed') !== -1) return 'لم تتغيّر كلمة المرور بعد. حاول مرة أخرى.';
     return fallback || 'حدث خطأ غير متوقع. حاول مرة أخرى.';
   }
 
@@ -234,7 +236,7 @@ const Auth = (function () {
     if (!me || (me.role !== 'admin' && me.role !== 'owner')) { accounts = []; return { ok: true }; }
     const r = await call(function (t) {
       return Supa.request('GET',
-        '/rest/v1/profiles?select=id,full_name,email,phone,stage,role,status,last_login_at,created_at&order=created_at.desc',
+        '/rest/v1/profiles?select=*&order=created_at.desc',
         { token: t });
     });
     if (!r.ok) return { ok: false, error: msgFor(r, 'تعذّر تحديث قائمة الحسابات.') };
@@ -262,9 +264,26 @@ const Auth = (function () {
     }
     return r;
   }
+  /* v2.0.6: بعد نجاح التغيير نخبر السيرفر (يرفع الإجبار ويسجّل الحركة). marked=false لو تعذّر ذلك (لا يُفشل التغيير نفسه) */
   async function changePassword(pw) {
     const r = await call(function (t) { return Supa.request('PUT', '/auth/v1/user', { token: t, body: { password: pw } }); });
-    return r.ok ? { ok: true } : { ok: false, error: msgFor(r, 'تعذّر تغيير كلمة المرور.') };
+    if (!r.ok) return { ok: false, error: msgFor(r, 'تعذّر تغيير كلمة المرور.') };
+    const m = await markPasswordChanged();
+    return { ok: true, marked: m.ok };
+  }
+  async function markPasswordChanged() {
+    const m = await rpc('my_password_changed', {});
+    if (m.ok && me) { me.mustChange = false; persist(); }
+    return m.ok ? { ok: true } : { ok: false, error: msgFor(m, 'تعذّر إنهاء تغيير كلمة المرور.') };
+  }
+  /* v2.0.6: المسؤول/المالك يعيّن كلمة مرور مؤقتة لحساب (تُولَّد في الواجهة وتُرسل مرة واحدة ولا تُحفظ) */
+  const setTempPassword = function (id, pw) { return action('admin_set_temp_password', { p_uid: id, p_password: pw }); };
+  /* v2.0.6: سجل الحركات (مسؤول/مالك). args = معاملات staff_activity_list */
+  async function activity(args) {
+    const r = await rpc('staff_activity_list', args || {});
+    if (r.ok) return { ok: true, data: r.data || { items: [], has_more: false, actors: [] } };
+    if (r.status === 404) return { ok: false, error: 'لم يتم تشغيل ملف SQL رقم ٢٣ على الخادم بعد.' };
+    return { ok: false, error: msgFor(r, 'تعذّر تحميل السجل.') };
   }
 
   return {
@@ -286,6 +305,9 @@ const Auth = (function () {
     updateName: updateName,
     updateProfile: updateProfile,
     changePassword: changePassword,
+    setTempPassword: setTempPassword,
+    markPasswordChanged: markPasswordChanged,
+    activity: activity,
     /* v1.2: للمزامنة (js/sync.js) — استدعاء بتوكن صالح مع تجديد/خروج إجباري عند فقد الجلسة */
     rpc: rpc,
     get: function (path) { return call(function (t) { return Supa.request('GET', path, { token: t }); }); },

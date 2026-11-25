@@ -17,7 +17,7 @@
   const GROUPS = [
     { t: 'المحتوى', items: [['plan', 'الخطة'], ['bulk', 'التوزيع'], ['books', 'الأسفار']] },
     { t: 'المسابقات', items: [['schedule', 'المواعيد'], ['unlock', 'الأكواد'], ['live', 'النتائج']] },
-    { t: 'الخدام', items: [['tracking', 'المتابعة'], ['accounts', 'الحسابات'], ['moderation', 'الإشراف']] },
+    { t: 'الخدام', items: [['tracking', 'المتابعة'], ['accounts', 'الحسابات'], ['moderation', 'الإشراف'], ['activity', 'السجل']] },
     { t: 'المالك', owner: true, items: [['json', 'رفع JSON'], ['backup', 'النسخة الاحتياطية']] }
   ];
   /* v1.6: أيقونات خطية inline (24px، stroke 1.9) بنفس أسلوب أيقونات الشريط السفلي */
@@ -31,6 +31,7 @@
     tracking: '<path d="M4 20V10M10 20V4M16 20v-8M21 20H3"/>',
     accounts: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3 3 0 0 1 0 5.6M18 14.2A5.5 5.5 0 0 1 21 19"/>',
     moderation: '<path d="M12 3.5 5 6.2V12c0 4 3 6.6 7 8.5 4-1.9 7-4.5 7-8.5V6.2L12 3.5Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+    activity: '<path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 12h6M9 16h3.5"/>',
     json: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
     backup: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'
   };

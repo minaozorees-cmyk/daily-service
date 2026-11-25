@@ -195,7 +195,7 @@ loginForm.addEventListener('submit', async (e) => {
 /* نسيت كلمة المرور */
 $('forgotLink').addEventListener('click', (e) => {
   e.preventDefault();
-  showToast('لو نسيت كلمة المرور، تواصل مع المسؤول.', 'warning');
+  openModal('forgotModal');   // v2.0.6: خطوات الاسترجاع (المسؤول أو المالك يعطيك كلمة مؤقتة)
 });
 
 /* فتح مودال إنشاء الحساب */
