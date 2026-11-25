@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=2.0.5" />
+  <link rel="stylesheet" href="css/app.css?v=2.0.6" />
 </head>
 <body>
 
@@ -601,6 +601,7 @@
         <button class="sub-btn" data-panel="live" onclick="switchAdminSub('live', this)">🏅 النتائج المباشرة</button>
         <button class="sub-btn" data-panel="moderation" onclick="switchAdminSub('moderation', this)">🙈 الإشراف</button>
         <button class="sub-btn" data-panel="accounts" onclick="switchAdminSub('accounts', this)">👥 الحسابات</button>
+        <button class="sub-btn" data-panel="activity" onclick="switchAdminSub('activity', this)">🧾 سجل الحركات</button>
         <button class="sub-btn owner-only" data-panel="json" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
         <button class="sub-btn owner-only" data-panel="backup" onclick="switchAdminSub('backup', this)">💾 نسخة احتياطية (مالك)</button>
         <button class="sub-btn" data-panel="bulk" onclick="switchAdminSub('bulk', this)">🪄 توزيع الخطة</button>
@@ -829,6 +830,34 @@
         </div>
       </div>
 
+      <div id="admin-sub-activity" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🧾 سجل الحركات</div></div>
+        <p class="json-hint" id="act-scope" style="margin-top:0;"></p>
+        <div class="act-filters">
+          <select id="act-cat" class="form-control" aria-label="نوع الحركة">
+            <option value="">كل الأنواع</option>
+            <option value="login">الدخول</option>
+            <option value="password">كلمات المرور</option>
+            <option value="account">الحسابات</option>
+            <option value="content">المحتوى (الخطة والأسفار)</option>
+            <option value="contest">المسابقات والأكواد</option>
+            <option value="moderation">الإشراف على المشاركات</option>
+            <option value="settings">الإعدادات والمسح</option>
+          </select>
+          <select id="act-actor" class="form-control" aria-label="المستخدم"><option value="">كل المستخدمين</option></select>
+          <label class="act-date"><span>من</span><input type="date" id="act-from" class="form-control" /></label>
+          <label class="act-date"><span>إلى</span><input type="date" id="act-to" class="form-control" /></label>
+          <input type="search" id="act-q" class="form-control act-q" maxlength="60" placeholder="🔍 ابحث في الحركات" />
+        </div>
+        <div class="act-btns">
+          <button type="button" class="btn btn-primary btn-sm" onclick="activityApply()">تطبيق</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="activityReset()">مسح الفلتر</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="activityLoad(true)">🔄 تحديث</button>
+        </div>
+        <div id="act-list" class="act-list" aria-live="polite"></div>
+        <div style="text-align:center; margin-top:10px;"><button type="button" class="btn btn-outline btn-sm" id="act-more" onclick="activityMore()" style="display:none;">عرض المزيد</button></div>
+      </div>
+
       <div id="admin-sub-backup" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">💾 نسخة احتياطية واستعادة (المالك)</div></div>
         <p class="json-hint" style="margin-bottom:10px;">تشمل: الأسفار ومواعيد الفتح وأيام الخطة والمسابقات بأجوبتها. النتائج تُصدَّر للقراءة فقط، والحسابات تظهر في تقرير بلا أرقام تليفونات ولا تُستعاد (حسابات الدخول لا يمكن كتابتها من التطبيق).</p>
@@ -928,6 +957,58 @@
   </div>
 </div>
 
+<!-- v2.0.6: نسيت كلمة المرور -->
+<div class="modal-overlay" id="forgotModal" role="dialog" aria-modal="true" aria-labelledby="forgotTitle">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('forgotModal')" aria-label="إغلاق">✕</button>
+    <h3 id="forgotTitle">🔑 نسيت كلمة المرور؟</h3>
+    <p class="modal-sub">لا يوجد استرجاع بالبريد. الخطوات:</p>
+    <ol class="forgot-steps">
+      <li>تواصل مع المسؤول أو المالك.</li>
+      <li>سيعطيك كلمة مرور مؤقتة.</li>
+      <li>ادخل بها، وسيطلب منك التطبيق اختيار كلمة مرور جديدة.</li>
+    </ol>
+    <div class="modal-actions"><button type="button" class="btn btn-primary" onclick="closeModal('forgotModal')">حسنًا</button></div>
+  </div>
+</div>
+
+<!-- v2.0.6: عرض كلمة المرور المؤقتة (مرة واحدة) للمسؤول/المالك -->
+<div class="modal-overlay" id="tempPassModal" role="dialog" aria-modal="true" aria-labelledby="tpTitle">
+  <div class="modal">
+    <h3 id="tpTitle">🔑 كلمة المرور المؤقتة</h3>
+    <p class="modal-sub" id="tp-for"></p>
+    <div class="tp-value" id="tp-value" dir="ltr" aria-label="كلمة المرور المؤقتة"></div>
+    <p class="json-hint">تظهر هذه الكلمة مرة واحدة فقط ولا تُحفظ في أي مكان. أعطها للخادم بنفسك. عند أول دخول سيُطلب منه اختيار كلمة مرور جديدة.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" id="tp-copy" onclick="tempPassCopy()">📋 نسخ</button>
+      <button type="button" class="btn btn-primary" onclick="closeModal('tempPassModal')">تم، إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- v2.0.6: تغيير إجباري لكلمة المرور المؤقتة (لا يُغلق إلا بالتغيير أو الخروج) -->
+<div class="force-overlay" id="forceChangeOverlay" role="dialog" aria-modal="true" aria-labelledby="fcTitle">
+  <div class="modal">
+    <h3 id="fcTitle">🔑 اختر كلمة مرور جديدة</h3>
+    <p class="modal-sub">تم تعيين كلمة مرور مؤقتة لحسابك. لا بد أن تختار كلمة مرور جديدة قبل المتابعة.</p>
+    <form id="forceChangeForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="fc-pass">كلمة المرور الجديدة:</label>
+        <input type="password" id="fc-pass" class="form-control" placeholder="٦ أحرف على الأقل" autocomplete="new-password" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="fc-pass2">تأكيد كلمة المرور:</label>
+        <input type="password" id="fc-pass2" class="form-control" autocomplete="new-password" />
+        <p class="field-error" id="fc-error" role="alert"></p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="forceChangeLogout()">خروج</button>
+        <button type="submit" class="btn btn-primary" id="fc-submit">حفظ ومتابعة</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- =========================================================
@@ -943,18 +1024,19 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=2.0.5"></script>
-<script src="js/config.js?v=2.0.5"></script>
-<script src="js/supa.js?v=2.0.5"></script>
-<script src="js/auth.js?v=2.0.5"></script>
-<script src="js/sync.js?v=2.0.5"></script>
-<script src="js/books.js?v=2.0.5"></script>
-<script src="js/xlsx-lite.js?v=2.0.5"></script>
-<script src="js/app.js?v=2.0.5"></script>
-<script src="js/admin15.js?v=2.0.5"></script>
-<script src="js/admin16.js?v=2.0.5"></script>
-<script src="js/admin20.js?v=2.0.5"></script>
-<script src="js/update.js?v=2.0.5"></script>
-<script src="js/pwa.js?v=2.0.5"></script>
+<script src="js/version.js?v=2.0.6"></script>
+<script src="js/config.js?v=2.0.6"></script>
+<script src="js/supa.js?v=2.0.6"></script>
+<script src="js/auth.js?v=2.0.6"></script>
+<script src="js/sync.js?v=2.0.6"></script>
+<script src="js/books.js?v=2.0.6"></script>
+<script src="js/xlsx-lite.js?v=2.0.6"></script>
+<script src="js/app.js?v=2.0.6"></script>
+<script src="js/admin15.js?v=2.0.6"></script>
+<script src="js/admin16.js?v=2.0.6"></script>
+<script src="js/admin20.js?v=2.0.6"></script>
+<script src="js/admin21.js?v=2.0.6"></script>
+<script src="js/update.js?v=2.0.6"></script>
+<script src="js/pwa.js?v=2.0.6"></script>
 </body>
 </html>
