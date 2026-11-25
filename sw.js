@@ -1,10 +1,10 @@
-/* الخدمة اليومية — Service Worker (v1.6)
+/* الخدمة اليومية — Service Worker (v1.7)
    غيّر VERSION مع كل إصدار (وفي js/version.js).
    v1.2: تحديث آمن —
    - كل ملفات الصدفة (index + css + js + manifest + أيقونات) في كاش واحد بنسخة واحدة، فلا تلتقي صفحة جديدة بملفات قديمة.
    - الـSW الجديد يُحمِّل نسخته كاملة في الخلفية ثم ينتظر. لا skipWaiting تلقائي: التفعيل بطلب من الصفحة (js/update.js)
      بعد التأكد أن لا مسابقة قيد الحل ولا بيانات غير مرفوعة. */
-const VERSION = 'v1.6';
+const VERSION = 'v1.7';
 const CACHE = 'ds-' + VERSION;
 const BOOKS = 'ds-books-v1';              // v1.4: نصوص القراءة (books/) — كاش مستقل لا يُمسح عند تغيّر VERSION
 const FONTS = 'ds-fonts-v1';              // خطوط محلية (fonts/): كاش مستقل لا يُمسح عند تغيّر VERSION
