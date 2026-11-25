@@ -1790,3 +1790,7 @@
 .bulk-bar i { display: block; height: 100%; background: var(--primary); transition: width 0.2s; }
 .bulk-bad { margin: 10px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--danger, #dc2626); font-size: 0.82rem; }
 .bulk-bad ul { margin: 6px 0 0; padding-inline-start: 18px; }
+
+/* v1.7: أقسام الأجبية (عنوان + نص) */
+.prayer-block { margin-bottom: 16px; }
+.prayer-block-title { font-weight: 800; color: var(--primary); margin: 0 0 6px; font-size: 0.95rem; }
