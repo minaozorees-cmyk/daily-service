@@ -29,6 +29,7 @@ const STORE = {
   posts: 'ds_v2_posts',
   fontSize: 'ds_v2_font_size',
   theme: 'ds_v2_theme',
+  slogan: 'ds_v2_slogan',   // v2.0: { day, s } شعار اليوم (نسخة محلية للعمل أوفلاين)
   review: 'ds_v2_review'       // v1.4: آخر مراجعة أجوبة من السيرفر { uid, cid, at, data }
 };
 
@@ -413,9 +414,35 @@ function todayPlanState() {
   return { state: 'ok', plan: planView(rec.plan) };
 }
 
+/* v2.0: شعار اليوم — من slogan_today (الاستخراج تم وقت الرفع). النسخة المحلية تعرض فورًا وأوفلاين؛ بلا شيء ⇒ النص الثابت في الصفحة. */
+let sloganDefault = null, sloganBusy = false, sloganTs = 0;
+function applySlogan(s) {
+  const q = $('hero-slogan-text'), r = $('hero-slogan-ref'); if (!q || !r) return;
+  if (!sloganDefault) sloganDefault = { text: q.textContent, ref: r.textContent };
+  if (s && s.text) {
+    const t = String(s.text).trim();
+    q.textContent = /^[«"“]/.test(t) ? t : '«' + t + '»';
+    r.textContent = s.label || '';
+    q.classList.toggle('long', t.length > 170);
+  } else { q.textContent = sloganDefault.text; r.textContent = sloganDefault.ref; q.classList.remove('long'); }
+}
+async function loadSlogan(force) {
+  const day = todayIso(), c = getStore(STORE.slogan, null);
+  applySlogan(c && c.day === day ? c.s : null);
+  if (sloganBusy || (!force && c && c.day === day && Date.now() - sloganTs < 30 * 60 * 1000)) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  sloganBusy = true;
+  try {
+    const r = await Sync.call('slogan_today', {});
+    if (r.ok && r.data) { sloganTs = Date.now(); setStore(STORE.slogan, { day, s: r.data.slogan || null }); applySlogan(r.data.slogan || null); }
+  } catch (e) { /* يبقى المعروض */ }
+  finally { sloganBusy = false; }
+}
+
 function renderToday() {
   const user = getCurrentUser();
   if (!user) return;
+  loadSlogan();
   const ps = todayPlanState();
   const plan = ps.state === 'ok' ? ps.plan : { ref: '', reading: '', meditation: '', prayer: '', challenge: '' };
   const key = `${user.id}:${todayKey()}`;

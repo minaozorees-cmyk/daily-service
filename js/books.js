@@ -76,7 +76,7 @@ var Books = (function () {
     var kind = d.kind || 'bible', chapters = {}, sections = [];
     d.chapters.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (c) {
       var title = secTitle({ titles: d.titles, kind: kind }, c.n);
-      chapters[String(c.n)] = { title: title, verses: c.verses.map(function (v) { return v[1]; }) };
+      chapters[String(c.n)] = { title: title, verses: c.verses.map(function (v) { return v[1]; }), nums: c.verses.map(function (v) { return v[0]; }) };
       sections.push({ n: c.n, title: title });
     });
     return { id: d.id, title: d.title, kind: kind, testament: d.testament || null, chapters: chapters, sections: sections };
@@ -137,10 +137,47 @@ var Books = (function () {
     });
   }
 
+  /* v2.0: مواصفة الآيات: «٤» أو «٤-٥» أو «١,٣-٤». تقبل الأرقام العربية و«،» و«–». ترجع { spec, nums } أو null */
+  function parseVerseSpec(spec) {
+    var s = String(spec == null ? '' : spec).replace(/[٠-٩]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); })
+      .replace(/[،؛;]/g, ',').replace(/[–—−]/g, '-').replace(/\s+/g, '');
+    if (!/^\d{1,3}(-\d{1,3})?(,\d{1,3}(-\d{1,3})?)*$/.test(s)) return null;
+    var nums = [], seen = {}, ok = true;
+    s.split(',').forEach(function (tok) {
+      var p = tok.split('-'), a = parseInt(p[0], 10), b = p.length > 1 ? parseInt(p[1], 10) : a;
+      if (a < 1 || b < a) { ok = false; return; }
+      for (var n = a; n <= b; n++) { if (seen[n]) { ok = false; return; } seen[n] = 1; nums.push(n); }
+    });
+    return ok ? { spec: s, nums: nums } : null;
+  }
+  function humanSpec(spec) { return toAr(spec.replace(/,/g, '، ').replace(/-/g, ' - ')); }
+
+  /* يستخرج آيات من سفر محمَّل: Promise → { ok:true, book, nums, texts } أو { ok:false, error } (بلا رفض) */
+  function pick(id, ch, spec) {
+    var ps = parseVerseSpec(spec);
+    if (!ps) return Promise.resolve({ ok: false, error: 'صيغة الآيات غير صالحة (مثال: ٤ أو ٤-٥ أو ١،٣-٤)' });
+    return load(id).then(function (b) {
+      if (b.kind === 'agpeya') return { ok: false, error: 'الأجبية غير مدعومة في الشواهد' };
+      var c = b.chapters[String(ch)];
+      if (!c) return { ok: false, error: 'الأصحاح ' + toAr(ch) + ' غير موجود في «' + b.title + '»' };
+      var texts = [];
+      for (var i = 0; i < ps.nums.length; i++) {
+        var at = c.nums.indexOf(ps.nums[i]);
+        if (at < 0) return { ok: false, error: 'الآية ' + toAr(ps.nums[i]) + ' غير موجودة في «' + b.title + '» ' + toAr(ch) };
+        texts.push(c.verses[at]);
+      }
+      return { ok: true, book: b.title, spec: ps.spec, label: b.title + ' ' + toAr(ch) + ' : ' + humanSpec(ps.spec), nums: ps.nums, texts: texts };
+    }, function (e) {
+      return { ok: false, error: e && e.code === 'MISSING' ? 'السفر «' + id + '» غير موجود في الفهرس' : e && e.code === 'BAD' ? 'ملف السفر «' + id + '» غير صالح' : 'تعذّر تحميل السفر «' + id + '»' };
+    });
+  }
+  function release(id) { delete mem[id]; }
+
   function chapterTitle(id, n) { return mem[id] && mem[id].chapters[String(n)] ? mem[id].chapters[String(n)].title : null; }
 
   return {
     index: index, load: load, sections: sections, inspect: inspect, chapterTitle: chapterTitle,
+    pick: pick, parseVerseSpec: parseVerseSpec, release: release,
     reset: function () { indexP = null; loading = {}; mem = {}; }
   };
 })();
