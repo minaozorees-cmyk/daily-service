@@ -881,7 +881,6 @@ function initBibleSelectors() {
 }
 
 async function updateChapterSelector() {
-  if (readingMode === 'agpeya') return renderAgpeyaHome();   // v2.0.1: الأجبية بكروت لا بقائمة منسدلة
   const seq = ++readingSeq;
   const chapSel = $('bible-chapter-select'), disp = $('scripture-display');
   let ix;
@@ -914,6 +913,7 @@ async function updateChapterSelector() {
 async function renderScripture() {
   const seq = ++readingSeq;
   const id = currentReadingBook(), key = $('bible-chapter-select').value, disp = $('scripture-display');
+  if (id === 'agpeya') agpeyaReset();
   if (!key) { disp.innerHTML = ''; return; }
   disp.innerHTML = LOADING_HTML;
   const states = await bookSectionStates(id);
@@ -924,7 +924,8 @@ async function renderScripture() {
     const book = await Books.load(id);
     if (seq !== readingSeq) return;
     const ch = book.chapters[key];
-    disp.innerHTML = ch ? chapterHtml(ch) : readingErrorHtml({ code: 'MISSING' });
+    if (ch && ch.blocks && id === 'agpeya') agpeyaFill(ch);
+    else disp.innerHTML = ch ? chapterHtml(ch) : readingErrorHtml({ code: 'MISSING' });
   } catch (e) {
     if (seq === readingSeq) disp.innerHTML = readingErrorHtml(e);
   }
@@ -936,59 +937,36 @@ function setReadingMode(mode) {
   document.querySelectorAll('.reading-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   $('reading-title').textContent = isAg ? '🙏 الأجبية المقدسة' : '📖 الكتاب المقدس';
   $('reading-book-wrap').style.display = isAg ? 'none' : '';
-  $('reading-selectors').style.display = isAg ? 'none' : 'grid';   // v2.0.1: الأجبية بكروت الساعات
-  $('reading-chapter-label').textContent = 'الأصحاح:';
+  if (!isAg) agpeyaReset();
+  $('reading-selectors').classList.toggle('ag-mode', isAg);
+  $('reading-fs-top').style.display = isAg ? 'none' : '';
+  $('reading-section-wrap').style.display = isAg ? '' : 'none';   // قائمة أقسام الصلاة
+  $('reading-chapter-label').textContent = isAg ? 'الصلاة:' : 'الأصحاح:';
   updateChapterSelector();
 }
 
-/* v2.0.1: الأجبية — شاشة كروت الساعات (توزيع الصلوات على اليوم) ثم شاشة الساعة: كل قسم كارت قابل للفتح */
-function agpeyaScrollTop() { const t = $('reading-title'); if (t && t.scrollIntoView) t.scrollIntoView({ block: 'start' }); }
-async function renderAgpeyaHome(scroll) {
-  const seq = ++readingSeq, disp = $('scripture-display');
-  disp.innerHTML = LOADING_HTML;
-  try {
-    const [states, book] = await Promise.all([bookSectionStates('agpeya'), Books.load('agpeya')]);
-    if (seq !== readingSeq || readingMode !== 'agpeya') return;
-    const keys = Object.keys(book.chapters).sort((a, b) => Number(a) - Number(b));
-    disp.innerHTML = `<div class="ag-intro">توزيع صلوات اليوم — اختر الساعة:</div><div class="ag-list">` + keys.map(k => {
-      const ch = book.chapters[k], st = sectionStatus(states, Number(k)), parts = String(ch.title).split('—');
-      const main = parts[0].trim(), sub = parts.slice(1).join('—').trim(), n = (ch.blocks || []).length;
-      return `<button type="button" class="ag-card${st.open ? '' : ' ag-locked'}" onclick="openAgpeyaHour(${Number(k)})">` +
-        `<span class="ag-num">${toAr(k)}</span>` +
-        `<span class="ag-body"><span class="ag-name">${escapeHtml(main)}</span><span class="ag-sub">${escapeHtml(sub)}${sub ? ' · ' : ''}${toAr(n)} قسم</span></span>` +
-        `<span class="ag-arrow">${st.open ? '‹' : '🔒'}</span></button>`;
-    }).join('') + `</div>`;
-    if (scroll) agpeyaScrollTop();
-  } catch (e) {
-    if (seq === readingSeq) disp.innerHTML = readingErrorHtml(e);
-  }
+/* v2.0.4: الأجبية — قائمتان في صف واحد (الصلاة | القسم)، قسم واحد في كل مرة، وتحتهما عنوان القسم واسم الصلاة وصف حجم الخط */
+let agpeyaCur = null;
+function agpeyaReset() {
+  agpeyaCur = null;
+  $('ag-section-select').innerHTML = '';
+  $('ag-head').style.display = 'none';
 }
-async function openAgpeyaHour(key) {
-  const seq = ++readingSeq, disp = $('scripture-display');
-  const back = `<div class="ag-head"><button type="button" class="btn btn-outline btn-sm" onclick="renderAgpeyaHome(true)">→ كل الصلوات</button>`;
-  disp.innerHTML = LOADING_HTML;
-  try {
-    const states = await bookSectionStates('agpeya');
-    if (seq !== readingSeq) return;
-    const st = sectionStatus(states, Number(key));
-    if (!st.open) { disp.innerHTML = back + `</div>` + lockedHtml(st); agpeyaScrollTop(); return; }
-    const book = await Books.load('agpeya');
-    if (seq !== readingSeq) return;
-    const ch = book.chapters[String(key)];
-    if (!ch) { disp.innerHTML = back + `</div>` + readingErrorHtml({ code: 'MISSING' }); return; }
-    disp.innerHTML = back + `<button type="button" class="btn btn-outline btn-sm" id="ag-toggle" onclick="toggleAgpeyaAll()">فتح الكل</button></div>` +
-      `<div class="ag-hour-title">${escapeHtml(ch.title)}</div><div class="ag-count">${toAr((ch.blocks || []).length)} قسم — اضغط على القسم لفتحه</div>` +
-      (ch.blocks || []).map((b, i) => `<details class="ag-sec"><summary><span class="ag-sec-n">${toAr(i + 1)}</span>${escapeHtml(b.title)}</summary><div class="ag-sec-body">${prayerParaHtml(b.text)}</div></details>`).join('');
-    agpeyaScrollTop();
-  } catch (e) {
-    if (seq === readingSeq) disp.innerHTML = back + `</div>` + readingErrorHtml(e);
-  }
+function agpeyaFill(ch) {
+  agpeyaCur = ch;
+  const sel = $('ag-section-select');
+  sel.innerHTML = (ch.blocks || []).map((b, i) => `<option value="${i}">${escapeHtml(b.title)}</option>`).join('');
+  sel.value = '0';
+  agpeyaShow();
 }
-function toggleAgpeyaAll() {
-  const ds = Array.from(document.querySelectorAll('#scripture-display details.ag-sec'));
-  const openAll = ds.some(d => !d.open);
-  ds.forEach(d => { d.open = openAll; });
-  const b = $('ag-toggle'); if (b) b.textContent = openAll ? 'طي الكل' : 'فتح الكل';
+function agpeyaShow() {
+  const disp = $('scripture-display'), blocks = agpeyaCur && agpeyaCur.blocks || [];
+  const b = blocks[Number($('ag-section-select').value)];
+  $('ag-head').style.display = b ? '' : 'none';
+  if (!b) { disp.innerHTML = readingErrorHtml({ code: 'MISSING' }); return; }
+  $('ag-title').textContent = b.title;
+  $('ag-hour').textContent = agpeyaCur.title;
+  disp.innerHTML = blocksHtml([b]);
 }
 
 function openBible() {
