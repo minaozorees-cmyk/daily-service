@@ -84,11 +84,11 @@ const Sync = (function () {
   }
   function fmtPostDate(iso) {
     try {
-      return new Date(iso).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+      return new Date(iso).toLocaleString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     } catch (e) { return ''; }
   }
   function fmtResultDate(iso) {
-    try { return new Date(iso).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo' }); } catch (e) { return ''; }
+    try { return new Date(iso).toLocaleDateString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo' }); } catch (e) { return ''; }
   }
 
   /* ---------- إشعارات للواجهة ---------- */

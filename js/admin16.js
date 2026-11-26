@@ -92,7 +92,7 @@
     if (!d) return showToast('اختر تاريخ أول فتح', 'error');
     const cd = $('admin-chap-close').value.trim();
     const closeDays = cd ? parseInt(cd, 10) : null;
-    if (cd && !(closeDays >= 1 && closeDays <= 365)) return showToast('مدة الإغلاق من ١ إلى ٣٦٥ يومًا', 'error');
+    if (cd && !(closeDays >= 1 && closeDays <= 365)) return showToast('مدة الإغلاق من 1 إلى 365 يومًا', 'error');
     if (book !== loadedBook) { dirty = false; await refresh(true); }
     const r = await Sync.call('staff_preview_schedule', {
       p_book: book, p_start: `${d}T${t}`, p_mode: $('admin-chap-mode').value,

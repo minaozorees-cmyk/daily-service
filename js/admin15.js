@@ -216,8 +216,8 @@
     const name = f('name').value.trim();
     const phone = Auth.normalizePhone(f('phone').value);
     const stage = f('stage').value;
-    if (name.length < 2 || name.length > 80) return showToast('الاسم يجب أن يكون بين ٢ و٨٠ حرفًا.', 'error');
-    if (!phone) return showToast('رقم التليفون غير صالح (٨ إلى ١٥ رقمًا).', 'error');
+    if (name.length < 2 || name.length > 80) return showToast('الاسم يجب أن يكون بين 2 و80 حرفًا.', 'error');
+    if (!phone) return showToast('رقم التليفون غير صالح (8 إلى 15 رقمًا).', 'error');
     btn.disabled = true;
     const r = await Auth.updateProfile(id, name, phone, stage);
     btn.disabled = false;
@@ -262,7 +262,7 @@
   function dayLabel(iso) {
     const a = String(iso).split('-').map(Number);
     let wd = '';
-    try { wd = new Date(Date.UTC(a[0], a[1] - 1, a[2])).toLocaleDateString('ar-EG', { weekday: 'long', timeZone: 'UTC' }); } catch (e) { wd = ''; }
+    try { wd = new Date(Date.UTC(a[0], a[1] - 1, a[2])).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', timeZone: 'UTC' }); } catch (e) { wd = ''; }
     return `<span dir="ltr">${escapeHtml(iso)}</span> ${escapeHtml(wd)}`;
   }
   function addDay(iso, n) {
@@ -279,7 +279,7 @@
       return;
     }
     if (d.status === 'too_long') {
-      box.innerHTML = '<div class="bulk-msg bad">⚠️ التوزيع يتجاوز الحد الأقصى (٤٠٠ يوم من اليوم). اختر بداية أقرب أو ابدأ من أصحاح متأخر.</div>';
+      box.innerHTML = '<div class="bulk-msg bad">⚠️ التوزيع يتجاوز الحد الأقصى (400 يوم من اليوم). اختر بداية أقرب أو ابدأ من أصحاح متأخر.</div>';
       return;
     }
     const c = d.counts || {}, w = d.warnings || {};
@@ -370,7 +370,7 @@
     const f = input.files && input.files[0];
     input.value = '';
     if (!f || !requireRole('owner')) return;
-    if (f.size > 60 * 1024 * 1024) return showToast('الملف كبير جدًّا (أكثر من ٦٠ ميجابايت).', 'error');
+    if (f.size > 60 * 1024 * 1024) return showToast('الملف كبير جدًّا (أكثر من 60 ميجابايت).', 'error');
     let obj;
     try { obj = JSON.parse(await f.text()); } catch (e) { return showToast('الملف ليس JSON صالحًا.', 'error'); }
     if (!obj || typeof obj !== 'object' || obj.format !== 'ds-backup') return showToast('هذا ليس ملف نسخة احتياطية من التطبيق.', 'error');

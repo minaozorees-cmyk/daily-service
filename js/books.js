@@ -21,7 +21,7 @@ var Books = (function () {
     }, function () { var e = new Error('offline'); e.code = 'OFFLINE'; throw e; });
   }
   function bad(msg) { var e = new Error(msg || 'bad'); e.code = 'BAD'; return e; }
-  function toAr(n) { return String(n).replace(/[0-9]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[d]; }); }
+  function toAr(n) { return String(n); }   /* v3.0.8: أرقام إنجليزية (الاسم قديم) */
 
   function validIndex(d) {
     return !!d && typeof d === 'object' && Array.isArray(d.books) && d.books.every(function (b) {
@@ -155,7 +155,7 @@ var Books = (function () {
   /* يستخرج آيات من سفر محمَّل: Promise → { ok:true, book, nums, texts } أو { ok:false, error } (بلا رفض) */
   function pick(id, ch, spec) {
     var ps = parseVerseSpec(spec);
-    if (!ps) return Promise.resolve({ ok: false, error: 'صيغة الآيات غير صالحة (مثال: ٤ أو ٤-٥ أو ١،٣-٤)' });
+    if (!ps) return Promise.resolve({ ok: false, error: 'صيغة الآيات غير صالحة (مثال: 4 أو 4-5 أو 1،3-4)' });
     return load(id).then(function (b) {
       if (b.kind === 'agpeya') return { ok: false, error: 'الأجبية غير مدعومة في الشواهد' };
       var c = b.chapters[String(ch)];

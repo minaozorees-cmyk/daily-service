@@ -169,7 +169,7 @@ function validateLogin() {
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showFieldError(emailWrap, emailError, 'صيغة البريد غير صحيحة.'); valid = false; }
   const pass = passwordInput.value;
   if (!pass) { showFieldError(passwordWrap, passwordError, 'من فضلك أدخل كلمة المرور.'); valid = false; }
-  else if (pass.length < 6) { showFieldError(passwordWrap, passwordError, 'كلمة المرور ٦ أحرف على الأقل.'); valid = false; }
+  else if (pass.length < 6) { showFieldError(passwordWrap, passwordError, 'كلمة المرور 6 أحرف على الأقل.'); valid = false; }
   return valid;
 }
 
@@ -221,7 +221,7 @@ $('createAccountForm').addEventListener('submit', async (e) => {
   if (!name || name.length < 2) { showFieldError(null, $('ca-name-error'), 'أدخل الاسم الكامل.'); valid = false; }
   else $('ca-name-error').classList.remove('visible');
 
-  if (!phone) { showFieldError(null, $('ca-phone-error'), 'رقم تليفون غير صالح (أرقام فقط، من ٨ إلى ١٥ رقمًا).'); valid = false; }
+  if (!phone) { showFieldError(null, $('ca-phone-error'), 'رقم تليفون غير صالح (أرقام فقط، من 8 إلى 15 رقمًا).'); valid = false; }
   else $('ca-phone-error').classList.remove('visible');
 
   if (!Auth.STAGE_OPTIONS.some(s => s.code === stage)) { showFieldError(null, $('ca-stage-error'), 'اختر المرحلة.'); valid = false; }
@@ -230,7 +230,7 @@ $('createAccountForm').addEventListener('submit', async (e) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showFieldError(null, $('ca-email-error'), 'بريد إلكتروني غير صالح.'); valid = false; }
   else $('ca-email-error').classList.remove('visible');
 
-  if (!pass || pass.length < 6) { showFieldError(null, $('ca-pass-error'), 'كلمة المرور ٦ أحرف على الأقل.'); valid = false; }
+  if (!pass || pass.length < 6) { showFieldError(null, $('ca-pass-error'), 'كلمة المرور 6 أحرف على الأقل.'); valid = false; }
   else $('ca-pass-error').classList.remove('visible');
 
   if (pass !== pass2) { showFieldError(null, $('ca-pass2-error'), 'كلمتا المرور غير متطابقتين.'); valid = false; }
@@ -381,14 +381,14 @@ function todayKey() {
   return Sync.todayKey();   // v1.2: اليوم بتوقيت القاهرة (يُضبط من السيرفر)
 }
 
-const toAr = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const toAr = n => String(n);   /* v3.0.8: أرقام إنجليزية (الاسم قديم) */
 const pad2 = n => (n < 10 ? '0' : '') + n;
 /* اليوم بتوقيت القاهرة بصيغة YYYY-MM-DD (todayKey بلا أصفار) */
 function todayIso() { const a = todayKey().split('-').map(Number); return `${a[0]}-${pad2(a[1])}-${pad2(a[2])}`; }
 function fmtLongDate(iso) {
   const a = String(iso).slice(0, 10).split('-').map(Number);
   if (a.length !== 3 || a.some(isNaN)) return '';
-  return new Date(a[0], a[1] - 1, a[2]).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+  return new Date(a[0], a[1] - 1, a[2]).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 /* v1.3: تحويل صف plan_days إلى الشكل الذي تعرضه الواجهة. العنوان والشاهد يُشتقّان من book_id + القسم + الآيات (لا نص حر). */
@@ -449,7 +449,7 @@ function renderToday() {
   const progressAll = getStore(STORE.progress, {});
   const userProg = progressAll[key] || { reading: false, meditation: false, prayer: false, challenge: false };
 
-  const dateLabel = Sync.cairoNow().toLocaleDateString('ar-EG', { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateLabel = Sync.cairoNow().toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', month: 'short', day: 'numeric' });
   $('today-date-label').textContent = dateLabel;
   $('plan-verse-ref').textContent = plan.ref;
   $('plan-verse-ref').style.display = plan.ref ? '' : 'none';
@@ -497,7 +497,7 @@ function renderToday() {
   $('today-ring-sub').textContent = `${doneCount} من ${tasks.length} مهام`;
   $('today-ring-title').textContent = pct === 100 ? 'أتممت مهام اليوم 🎉' : pct >= 50 ? 'اقتربت، أكمل!' : pct > 0 ? 'بداية طيبة ✨' : 'ابدأ يومك بالصلاة';
   $('today-ring').classList.toggle('complete', pct === 100);
-  $('celebration-banner').textContent = `🎉 مبارك يا ${user.name}! أتممت جميع مهامك الروحية اليوم بنجاح ١٠٠٪`;
+  $('celebration-banner').textContent = `🎉 مبارك يا ${user.name}! أتممت جميع مهامك الروحية اليوم بنجاح 100%`;
   $('celebration-banner').style.display = (pct === 100) ? 'block' : 'none';
 
   // نشاط الفريق: يظهر للمسؤول والمالك فقط
@@ -778,7 +778,7 @@ function showDayInfo(key) {
   const user = getCurrentUser();
   if (!user) return;
   const c = userDayCounts(user.id)[key] || 0;
-  const label = parseDayKey(key).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
+  const label = parseDayKey(key).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' });
   showToast(`${label}: ${c} من ${TASK_KEYS.length} مهام`);
 }
 
@@ -798,7 +798,7 @@ function renderStreakCard() {
   const first = new Date(calView.y, calView.m, 1);
   const dim = new Date(calView.y, calView.m + 1, 0).getDate();
   const offset = (first.getDay() + 1) % 7;   // الأسبوع يبدأ بالسبت
-  $('cal-title').textContent = first.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+  $('cal-title').textContent = first.toLocaleDateString('ar-EG-u-nu-latn', { month: 'long', year: 'numeric' });
   $('cal-next').disabled = calView.y === now.getFullYear() && calView.m === now.getMonth();
 
   const todayK = dayKeyOf(now);
@@ -808,7 +808,7 @@ function renderStreakCard() {
     const dt = new Date(calView.y, calView.m, day);
     const k = dayKeyOf(dt);
     const future = dt.getTime() > now.getTime();
-    html += `<button type="button" class="cal-cell lvl${counts[k] || 0} ${k === todayK ? 'today' : ''} ${future ? 'future' : ''}" ${future ? 'disabled' : ''} onclick="showDayInfo(${jsArg(k)})">${day.toLocaleString('ar-EG')}</button>`;
+    html += `<button type="button" class="cal-cell lvl${counts[k] || 0} ${k === todayK ? 'today' : ''} ${future ? 'future' : ''}" ${future ? 'disabled' : ''} onclick="showDayInfo(${jsArg(k)})">${day.toLocaleString('ar-EG-u-nu-latn')}</button>`;
   }
   $('cal-grid').innerHTML = html;
 
@@ -1135,7 +1135,7 @@ async function redeemUnlock() {
   const inp = $('quiz-unlock-code'), btn = $('quiz-unlock-btn');
   if (!inp || !getCurrentUser()) return;
   const code = inp.value.toUpperCase().replace(/[^0-9A-F]/g, '');
-  if (code.length !== 10) return showToast('الكود مكوّن من ١٠ حروف وأرقام (A-F و 0-9)', 'error');
+  if (code.length !== 10) return showToast('الكود مكوّن من 10 حروف وأرقام (A-F و 0-9)', 'error');
   if (btn) btn.disabled = true;
   const r = await Sync.call('check_unlock_code', { p_code: code });
   if (btn) btn.disabled = false;
@@ -1325,7 +1325,7 @@ function submitQuiz() {
     total: prevRec && !prevRec.pending && prevRec.total ? prevRec.total : questions.length,
     pending: true,
     cid: cidNow, answers: { ...selectedAnswers },
-    date: Sync.cairoNow().toLocaleDateString('ar-EG'), at: Date.now()
+    date: Sync.cairoNow().toLocaleDateString('ar-EG-u-nu-latn'), at: Date.now()
   };
   if (prevIdx > -1) results[prevIdx] = rec; else results.push(rec);
   setStore(STORE.results, results);
@@ -1391,7 +1391,7 @@ function hasUnsavedInput() {
   if (ta && ta.value.trim()) return true;
   const a = document.activeElement;
   if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest && a.closest('#tab-admin')) return true;
-  if (Date.now() - lastAdminInputAt < 5 * 60 * 1000) return true;   // كتب مسؤول في لوحة الإدارة خلال آخر ٥ دقائق
+  if (Date.now() - lastAdminInputAt < 5 * 60 * 1000) return true;   // كتب مسؤول في لوحة الإدارة خلال آخر 5 دقائق
   return false;
 }
 document.addEventListener('input', (e) => {
@@ -1638,7 +1638,7 @@ async function saveProfile() {
   const newName = $('profile-name-input').value.trim();
   const newPass = $('profile-pass-input').value.trim();
   if (newName && newName.length < 2) { showToast('الاسم قصير جدًا', 'error'); return; }
-  if (newPass && newPass.length < 6) { showToast('كلمة المرور ٦ أحرف على الأقل', 'error'); return; }
+  if (newPass && newPass.length < 6) { showToast('كلمة المرور 6 أحرف على الأقل', 'error'); return; }
   if (newName && newName !== user.name) {
     const r = await Auth.updateName(newName);
     if (!r.ok) { showToast(r.error, 'error'); return; }
@@ -1772,8 +1772,8 @@ function fmtSchedDate(d, t) {
   if (!d) return '';
   const dt = new Date(`${d}T${t || '00:00'}`);
   if (isNaN(dt)) return '';
-  const day = dt.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const time = t ? dt.toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' }) : '';
+  const day = dt.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const time = t ? dt.toLocaleTimeString('ar-EG-u-nu-latn', { hour: 'numeric', minute: '2-digit' }) : '';
   return time ? `${day} — ${time}` : day;
 }
 
@@ -2043,7 +2043,7 @@ async function saveOwnerContestJson() {
 
 /* --- v1.3: لوحة الأسفار (تسجيل سفر + جدولة فتح الأصحاحات بمعاينة قابلة للتعديل قبل الحفظ) --- */
 function fmtOpenDate(iso) {
-  try { return new Date(iso).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; }
+  try { return new Date(iso).toLocaleString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); } catch { return ''; }
 }
 
 function renderAdminBooks() {
@@ -2084,7 +2084,7 @@ async function adminSaveBook() {
   const title = $('admin-book-title').value.trim();
   const sections = parseInt($('admin-book-sections').value, 10);
   if (!title) return showToast('اكتب اسم السفر', 'error');
-  if (!(sections >= 1 && sections <= 400)) return showToast('عدد الأصحاحات بين ١ و ٤٠٠', 'error');
+  if (!(sections >= 1 && sections <= 400)) return showToast('عدد الأصحاحات بين 1 و 400', 'error');
   const existing = Sync.books().find(b => b.id === id);
   const r = await Sync.call('admin_upsert_book', {
     p_id: id, p_kind: $('admin-book-kind').value, p_title: title, p_short: $('admin-book-short').value.trim(),
@@ -2106,7 +2106,7 @@ function fmtDuration(mins) {
   if (d) out.push(toAr(d) + (d === 1 ? ' يوم' : d === 2 ? ' يومين' : ' أيام'));
   if (h) out.push(toAr(h) + (h === 1 ? ' ساعة' : h === 2 ? ' ساعتين' : h <= 10 ? ' ساعات' : ' ساعة'));
   if (m) out.push(toAr(m) + (m <= 10 ? ' دقائق' : ' دقيقة'));
-  return out.join(' و') || '٠ دقيقة';
+  return out.join(' و') || '0 دقيقة';
 }
 function readUnlockMinutes() {
   const per = UNLOCK_UNITS[$('admin-unlock-unit').value] || 60;
@@ -2114,7 +2114,7 @@ function readUnlockMinutes() {
   let mins = isNaN(raw) ? 1440 : raw * per;
   if (mins < UNLOCK_MIN || mins > UNLOCK_MAX) {
     mins = Math.max(UNLOCK_MIN, Math.min(UNLOCK_MAX, mins));
-    showToast('المدة المسموحة من ٥ دقائق إلى ٧ أيام. ضُبطت على ' + fmtDuration(mins), 'warning');
+    showToast('المدة المسموحة من 5 دقائق إلى 7 أيام. ضُبطت على ' + fmtDuration(mins), 'warning');
   }
   return mins;
 }
@@ -2171,7 +2171,7 @@ function fmtLastLogin(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
   try {
-    return d.toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   } catch { return d.toLocaleString(); }
 }
 
@@ -2606,7 +2606,7 @@ async function ownerBackupFileChosen(input) {
   const f = input.files && input.files[0];
   input.value = '';
   if (!f || !requireRole('owner')) return;
-  if (f.size > 15 * 1024 * 1024) return showToast('الملف كبير جدًّا (أكثر من ١٥ ميجابايت).', 'error');
+  if (f.size > 15 * 1024 * 1024) return showToast('الملف كبير جدًّا (أكثر من 15 ميجابايت).', 'error');
   let obj;
   try { obj = JSON.parse(await f.text()); } catch (e) { return showToast('الملف ليس JSON صالحًا.', 'error'); }
   if (!obj || typeof obj !== 'object' || obj.format !== 'ds-backup') return showToast('هذا ليس ملف نسخة احتياطية من التطبيق.', 'error');

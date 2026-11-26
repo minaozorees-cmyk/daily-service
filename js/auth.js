@@ -92,7 +92,7 @@ const Auth = (function () {
     if (c === 'invalid_credentials' || m.indexOf('invalid login') !== -1) return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
     if (c === 'user_already_exists' || m.indexOf('already registered') !== -1) return 'هذا البريد مسجّل بالفعل.';
     if (c === 'same_password' || m.indexOf('different from the old') !== -1) return 'كلمة المرور الجديدة يجب أن تختلف عن القديمة.';
-    if (c === 'weak_password' || m.indexOf('password should be at least') !== -1) return 'كلمة المرور ضعيفة. استخدم ٦ أحرف على الأقل.';
+    if (c === 'weak_password' || m.indexOf('password should be at least') !== -1) return 'كلمة المرور ضعيفة. استخدم 6 أحرف على الأقل.';
     if (c === 'reauthentication_needed' || m.indexOf('reauthentication') !== -1) return 'سجّل الخروج ثم ادخل من جديد، وبعدها غيّر كلمة المرور.';
     if (c === 'email_not_confirmed') return 'البريد غير مؤكَّد في إعدادات الخادم. تواصل مع المسؤول.';
     if (c === 'over_request_rate_limit' || c === 'over_email_send_rate_limit' || r.status === 429) return 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.';
@@ -282,7 +282,7 @@ const Auth = (function () {
   async function activity(args) {
     const r = await rpc('staff_activity_list', args || {});
     if (r.ok) return { ok: true, data: r.data || { items: [], has_more: false, actors: [] } };
-    if (r.status === 404) return { ok: false, error: 'لم يتم تشغيل ملف SQL رقم ٢٣ على الخادم بعد.' };
+    if (r.status === 404) return { ok: false, error: 'لم يتم تشغيل ملف SQL رقم 23 على الخادم بعد.' };
     return { ok: false, error: msgFor(r, 'تعذّر تحميل السجل.') };
   }
 

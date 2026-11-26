@@ -53,7 +53,7 @@
         if (dates[it.date]) { it.err = 'تاريخ مكرر مع العنصر ' + toAr(dates[it.date]); return; }
         dates[it.date] = it.i;
       }
-      if (it.label.length > 120) { it.err = 'العنوان (label) أطول من ١٢٠ حرفًا'; return; }
+      if (it.label.length > 120) { it.err = 'العنوان (label) أطول من 120 حرفًا'; return; }
     });
     return { items: out };
   }

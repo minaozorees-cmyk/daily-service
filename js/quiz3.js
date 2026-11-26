@@ -19,7 +19,7 @@
   /* ---------- أدوات ---------- */
   const el = () => $('quiz-container');
   const esc = (s) => escapeHtml(String(s == null ? '' : s));
-  const ar = (n) => String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+  const ar = (n) => String(n);   /* v3.0.8: أرقام إنجليزية (الاسم قديم) */
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const me = () => getCurrentUser();
   function contest() { const c = getStore(STORE.contest, null); return c && !Array.isArray(c) && c.v === 3 && Array.isArray(c.chapters) ? c : null; }
@@ -111,7 +111,7 @@
   /* ---------- كود يكتبه الخادم يدويًا (احتياطي؛ الأصل أن يصله تلقائيًا) ---------- */
   window.q3UseTypedCode = async function () {
     const v = ($('q3-code').value || '').toUpperCase().replace(/[^0-9A-F]/g, '');
-    if (v.length !== 10) return showToast('الكود ١٠ خانات (أرقام وحروف A–F)', 'error');
+    if (v.length !== 10) return showToast('الكود 10 خانات (أرقام وحروف A–F)', 'error');
     const r = await Sync.call('check_unlock_code', { p_code: v });
     if (!r.ok) return showToast(r.error, 'error');
     const d = r.data || {};
@@ -434,7 +434,7 @@
   window.q3BoardRefresh = () => { if (boardCid) window.q3BoardContest(boardCid); else boardFetch(true); };
   function statusText() {
     if (boardCid) return '📁 مسابقة سابقة — للعرض فقط';
-    const t = boardAt ? new Date(boardAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+    const t = boardAt ? new Date(boardAt).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
     if ((typeof navigator !== 'undefined' && navigator.onLine === false) || boardErr) return '🟠 بلا اتصال' + (t ? ' — آخر تحديث ' + t : '');
     if (!boardAt) return '⏳ جارٍ التحديث…';
     return '🟢 مباشر — آخر تحديث ' + t;
@@ -576,15 +576,15 @@
     if (!q.q) { errs.push(where + ': سؤال بلا نص'); return null; }
     if (raw.isTimeline || Array.isArray(raw.events)) {
       const ev = raw.events;
-      if (!Array.isArray(ev) || ev.length < 2 || ev.length > 8) { errs.push(where + ': سؤال ترتيب يحتاج من ٢ إلى ٨ أحداث'); return null; }
+      if (!Array.isArray(ev) || ev.length < 2 || ev.length > 8) { errs.push(where + ': سؤال ترتيب يحتاج من 2 إلى 8 أحداث'); return null; }
       const ords = ev.map((e) => parseInt(e.correctOrder, 10)).sort((a, b) => a - b);
-      if (ords.some((o, i) => o !== i + 1)) { errs.push(where + ': correctOrder يجب أن يكون ١..' + ev.length + ' بلا تكرار'); return null; }
+      if (ords.some((o, i) => o !== i + 1)) { errs.push(where + ': correctOrder يجب أن يكون 1..' + ev.length + ' بلا تكرار'); return null; }
       q.isTimeline = true;
       q.events = shuffle(ev.map((e, i) => ({ id: i + 1, correctOrder: parseInt(e.correctOrder, 10), text: String(e.text || '').trim() })));   // يُخلط عند الرفع فلا يكشف ترتيب الملف الصواب
       if (q.events.some((e) => !e.text)) { errs.push(where + ': حدث بلا نص'); return null; }
     } else {
       const o = raw.opts || raw.options;
-      if (!Array.isArray(o) || o.length < 2 || o.length > 6) { errs.push(where + ': الخيارات من ٢ إلى ٦'); return null; }
+      if (!Array.isArray(o) || o.length < 2 || o.length > 6) { errs.push(where + ': الخيارات من 2 إلى 6'); return null; }
       const a = parseInt(raw.ans != null ? raw.ans : raw.answer, 10);
       if (isNaN(a) || a < 0 || a >= o.length) { errs.push(where + ': رقم الإجابة خارج المدى'); return null; }
       q.opts = o.map((x) => String(x).trim()); q.ans = a;
@@ -610,11 +610,11 @@
       (b.finalQuestions || []).forEach((raw, k) => { const q = normQ(raw, 'f' + (out.final.length + 1), errs, b.name + ' شامل ' + (k + 1)); if (q) out.final.push(q); });
     });
     if (!out.chapters.length) errs.push('لا توجد إصحاحات');
-    if (out.final.length < FINAL_N) warns.push('بنك الامتحان الشامل ' + out.final.length + ' سؤالًا (الأفضل ' + FINAL_N + ' فأكثر بـ١٠ سهل/١٠ متوسط/١٠ صعب).');
+    if (out.final.length < FINAL_N) warns.push('بنك الامتحان الشامل ' + out.final.length + ' سؤالًا (الأفضل ' + FINAL_N + ' فأكثر بـ10 سهل/10 متوسط/10 صعب).');
     const ids = {}; out.chapters.forEach((c) => c.qs.forEach((q) => { ids[q.id] = 1; })); out.final.forEach((q) => { ids[q.id] = 1; });
     const n = out.chapters.reduce((t, c) => t + c.qs.length, 0) + out.final.length;
     if (Object.keys(ids).length !== n) errs.push('معرّفات الأسئلة غير فريدة');
-    if (JSON.stringify(out).length > 190000) errs.push('الملف أكبر من الحد (٢٠٠ ألف حرف). قلّل الأسئلة.');
+    if (JSON.stringify(out).length > 190000) errs.push('الملف أكبر من الحد (200 ألف حرف). قلّل الأسئلة.');
     return { data: errs.length ? null : out, errs: errs, warns: warns, sum: summary(out) };
   }
   const summary = (d) => d && d.chapters ? `${ar(d.chapters.length)} إصحاحًا — ${d.chapters.map((c) => ar(c.qs.length)).join('، ')} سؤالًا — الشامل ${ar((d.final || []).length)} سؤالًا` : '';
@@ -677,7 +677,7 @@
     staged = null; $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'فحص ورفع الأسئلة');
     const list = [], errs = [];
     for (const f of files) {
-      if (f.size > 1500000) { errs.push('الملف «' + f.name + '» أكبر من الحد (١٫٥ ميجا)'); continue; }
+      if (f.size > 1500000) { errs.push('الملف «' + f.name + '» أكبر من الحد (1.5 ميجا)'); continue; }
       try { list.push({ name: f.name, json: JSON.parse(await f.text()) }); } catch (e) { errs.push('الملف «' + f.name + '»: خطأ في صيغة JSON'); }
     }
     if (errs.length) return fail(errs);

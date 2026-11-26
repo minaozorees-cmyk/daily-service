@@ -138,7 +138,7 @@
       if (!r.ok) { fcError(r.error); return; }
     } else {
       const p1 = $('fc-pass').value, p2 = $('fc-pass2').value;
-      if (p1.length < 6) { fcError('كلمة المرور ٦ أحرف على الأقل.'); return; }
+      if (p1.length < 6) { fcError('كلمة المرور 6 أحرف على الأقل.'); return; }
       if (p1 !== p2) { fcError('كلمتا المرور غير متطابقتين.'); return; }
       btn.disabled = true; r = await Auth.changePassword(p1); btn.disabled = false;
       if (!r.ok) { fcError(r.error); return; }
@@ -169,10 +169,10 @@
 
   const fmtTime = (iso) => {
     const d = new Date(iso); if (isNaN(d)) return '';
-    return d.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit' });
+    return d.toLocaleTimeString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit' });
   };
   const dayKey = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' }); };
-  const dayLabel = (iso) => new Date(iso).toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dayLabel = (iso) => new Date(iso).toLocaleDateString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const isIso = (v) => /^\d{4}-\d{2}-\d{2}T/.test(String(v));
   function fval(k, v) {
     if (v === '' || v == null) return '—';
@@ -181,7 +181,7 @@
     if (k === 'stage') { const s = Auth.STAGE_OPTIONS.find((x) => x.code === v); return s ? s.label : v; }
     if (v === 'true') return 'نعم';
     if (v === 'false') return 'لا';
-    if (isIso(v)) { const d = new Date(v); return isNaN(d) ? v : d.toLocaleString('ar-EG', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    if (isIso(v)) { const d = new Date(v); return isNaN(d) ? v : d.toLocaleString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }); }
     return v;
   }
   const flabel = (k) => FIELD[k] || k;
