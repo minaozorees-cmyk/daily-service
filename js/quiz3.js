@@ -357,8 +357,29 @@
      لوحة النتائج المباشرة (مسؤول/مالك): كل إصحاح على حدة + الإجمالي، والترتيب بالدرجات
      ============================================================ */
   let boardCol = 'total';
-  function boardData() { return getStore('ds_v3_board', null); }
+  let boardCid = null, pastBoard = null, contestList = null, listLoading = false;   // v3.0.4: null = المسابقة الحالية
+  function boardData() { return boardCid ? pastBoard : getStore('ds_v3_board', null); }
   window.q3BoardCol = function (v) { boardCol = v; renderBoard(); };
+  async function loadContestList() {
+    if (listLoading) return; listLoading = true;
+    const r = await Sync.call('staff_contests_list', {});
+    listLoading = false;
+    if (r.ok && Array.isArray(r.data)) { contestList = r.data; renderBoard(); }
+  }
+  window.q3BoardContest = async function (v) {
+    boardCol = 'total';
+    if (!v) { boardCid = null; pastBoard = null; renderBoard(); return; }
+    const box = $('admin-quiz-board'); if (box) box.innerHTML = '<p class="results-empty">جارٍ التحميل…</p>';
+    const r = await Auth.rpc('staff_quiz_board', { p_cid: v });
+    if (!r.ok) { boardCid = null; pastBoard = null; renderBoard(); showToast(r.offline ? 'يلزم اتصال بالإنترنت لعرض مسابقة سابقة.' : 'تعذّر تحميل نتائج هذه المسابقة.', 'error'); return; }
+    boardCid = v; pastBoard = r.data && typeof r.data === 'object' ? r.data : null; renderBoard();
+  };
+  function contestPicker() {
+    if (!contestList) return '';
+    if (contestList.length < 2) return '';
+    const ar2 = (n) => ar(n);
+    return `<select class="form-control" style="margin-bottom:10px" onchange="q3BoardContest(this.value)"><option value="">المسابقة الحالية</option>${contestList.filter((x) => !x.is_current).map((x) => `<option value="${esc(x.cid)}" ${boardCid === x.cid ? 'selected' : ''}>سابقة: ${esc(x.label || x.cid)} — ${ar2(x.people)} مشارك</option>`).join('')}</select>`;
+  }
   function cell(r, st) {
     const x = (r.steps || {})[st];
     if (!x) return { txt: '—', cls: 'none', v: -1 };
@@ -369,9 +390,11 @@
   function renderBoard() {
     const box = $('admin-quiz-board'); if (!box) return;
     const d = boardData();
-    if (!d || !d.cid) { box.innerHTML = '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
+    if (!contestList || (!boardCid && d && d.cid && !contestList.some((x) => x.cid === d.cid))) loadContestList();
+    const pick = contestPicker();
+    if (!d || !d.cid) { box.innerHTML = pick + '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
     const steps = d.steps || [], rows = (d.rows || []).slice();
-    if (!rows.length) { box.innerHTML = '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
+    if (!rows.length) { box.innerHTML = pick + '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
     const sel = `<select class="form-control" onchange="q3BoardCol(this.value)"><option value="total">الترتيب: الإجمالي</option>${steps.map((s) => `<option value="${s.step}" ${String(boardCol) === String(s.step) ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>`;
     let list, key;
     if (boardCol === 'total') { list = rows.slice().sort((a, b) => a.rank - b.rank); key = (r) => r.score; }
@@ -389,7 +412,7 @@
         <div class="q3-chips">${chips}</div><div class="live-bar"><i style="width:${pct}%"></i></div></div>
         <span class="badge badge-blue" dir="ltr">${ar(r.score)} / ${ar(r.total)}</span></div>`;
     }).join('');
-    box.innerHTML = `<div class="live-sum"><div><strong>${ar(rows.length)}</strong><span>مشارك</span></div><div><strong>${ar(rows.filter((r) => ((r.steps || {})[0] || {}).score != null).length)}</strong><span>أنهوا الشامل</span></div></div>${sel}${html || '<p class="results-empty">لا نتائج لهذا العمود بعد.</p>'}`;
+    box.innerHTML = `${pick}${boardCid ? `<p style="font-size:.8rem;color:var(--text-muted);margin:0 0 8px">مسابقة سابقة: ${esc(d.title || d.cid)} (للعرض فقط)</p>` : ''}<div class="live-sum"><div><strong>${ar(rows.length)}</strong><span>مشارك</span></div><div><strong>${ar(rows.filter((r) => ((r.steps || {})[0] || {}).score != null).length)}</strong><span>أنهوا الشامل</span></div></div>${sel}${html || '<p class="results-empty">لا نتائج لهذا العمود بعد.</p>'}`;
   }
 
   /* ============================================================
