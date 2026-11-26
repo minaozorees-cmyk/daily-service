@@ -379,6 +379,9 @@
     boardBusy = true;
     try {
       const r = await Auth.rpc('staff_quiz_board', { p_cid: null });
+      boardErr = !r.ok;
+      if (r.ok) boardAt = Date.now();
+      updateStatus();
       if (r.ok && r.data && typeof r.data === 'object') {
         const d = Object.assign({}, r.data); delete d.server_now;
         const raw = JSON.stringify(d);
@@ -408,7 +411,7 @@
     if (!contestList) return '';
     if (contestList.length < 2) return '';
     const ar2 = (n) => ar(n);
-    return `<select class="form-control" style="margin-bottom:10px" onchange="q3BoardContest(this.value)"><option value="">المسابقة الحالية</option>${contestList.filter((x) => !x.is_current).map((x) => `<option value="${esc(x.cid)}" ${boardCid === x.cid ? 'selected' : ''}>سابقة: ${esc(x.label || x.cid)} — ${ar2(x.people)} مشارك</option>`).join('')}</select>`;
+    return `<select class="form-control" onchange="q3BoardContest(this.value)"><option value="">المسابقة الحالية</option>${contestList.filter((x) => !x.is_current).map((x) => `<option value="${esc(x.cid)}" ${boardCid === x.cid ? 'selected' : ''}>سابقة: ${esc(x.label || x.cid)} — ${ar2(x.people)} مشارك</option>`).join('')}</select>`;
   }
   function cell(r, st) {
     const x = (r.steps || {})[st];
@@ -416,16 +419,88 @@
     if (x.score == null) return { txt: x.started ? '…' : '⛔', cls: x.started ? 'run' : 'bad', v: -1 };
     return { txt: ar(x.score) + '/' + ar(x.total), cls: 'ok', v: x.total ? x.score / x.total : 0 };
   }
+  /* ---------- v3.0.7: واجهة اللوحة: حالة مباشرة + فلاتر + بحث + أزرار + بطاقة الحلقة، ثم القائمة كما كانت ---------- */
+  let bStage = '', bQuery = '', bDetail = true, boardAt = 0, boardErr = false;
+  const ACC = () => { try { return Auth.getAccounts() || []; } catch (e) { return []; } };
+  const accOf = (id) => ACC().find((a) => a.id === id) || null;
+  const norm = (s) => String(s || '').toLowerCase().replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').trim();
+  const stageName = (code) => { const s = (Auth.STAGE_OPTIONS || []).find((x) => x.code === code); return s ? s.label : code; };
+  window.q3BoardStage = (v) => { bStage = v; renderBoard(); };
+  window.q3BoardSearch = (v) => { bQuery = v; renderOut(); };
+  window.q3BoardQ = () => { bQuery = ''; const i = $('q3b-search'); if (i) i.value = ''; renderOut(); };
+  window.q3BoardClear = () => { bStage = ''; bQuery = ''; renderBoard(); };
+  window.q3BoardDetail = () => { bDetail = !bDetail; renderBoard(); };
+  window.q3BoardTotal = () => { boardCol = 'total'; renderBoard(); };
+  window.q3BoardRefresh = () => { if (boardCid) window.q3BoardContest(boardCid); else boardFetch(true); };
+  function statusText() {
+    if (boardCid) return '📁 مسابقة سابقة — للعرض فقط';
+    const t = boardAt ? new Date(boardAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+    if ((typeof navigator !== 'undefined' && navigator.onLine === false) || boardErr) return '🟠 بلا اتصال' + (t ? ' — آخر تحديث ' + t : '');
+    if (!boardAt) return '⏳ جارٍ التحديث…';
+    return '🟢 مباشر — آخر تحديث ' + t;
+  }
+  function updateStatus() { const e = $('q3b-status'); if (e) e.textContent = statusText(); }
+  setInterval(updateStatus, 3000);
+
   window.renderQuizBoard = renderBoard;
   function renderBoard() {
     const box = $('admin-quiz-board'); if (!box) return;
     const d = boardData();
     if (!contestList || (!boardCid && d && d.cid && !contestList.some((x) => x.cid === d.cid))) loadContestList();
     const pick = contestPicker();
-    if (!d || !d.cid) { box.innerHTML = pick + '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
-    const steps = d.steps || [], rows = (d.rows || []).slice();
-    if (!rows.length) { box.innerHTML = pick + '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>'; return; }
-    const sel = `<select class="form-control" onchange="q3BoardCol(this.value)"><option value="total">الترتيب: الإجمالي</option>${steps.map((s) => `<option value="${s.step}" ${String(boardCol) === String(s.step) ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>`;
+    const empty = '<p class="results-empty">لا توجد نتائج بعد — ستظهر هنا فور مشاركة أي خادم.</p>';
+    if (!d || !d.cid || !(d.rows || []).length) { box.innerHTML = pick + empty; return; }
+    const steps = d.steps || [];
+    const colSel = `<select class="form-control" onchange="q3BoardCol(this.value)"><option value="total">الترتيب: الإجمالي</option>${steps.map((s) => `<option value="${s.step}" ${String(boardCol) === String(s.step) ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}</select>`;
+    const present = []; (d.rows || []).forEach((r) => { const a = accOf(r.user_id); if (a && a.stageCode && present.indexOf(a.stageCode) < 0) present.push(a.stageCode); });
+    const stageSel = present.length ? `<select class="form-control" onchange="q3BoardStage(this.value)"><option value="">كل المراحل</option>${present.map((c) => `<option value="${esc(c)}" ${bStage === c ? 'selected' : ''}>${esc(stageName(c))}</option>`).join('')}</select>` : '';
+    box.innerHTML = `<div class="q3b-status" id="q3b-status">${esc(statusText())}</div>
+      <div class="q3b-filters">${pick}${colSel}${stageSel}</div>
+      <input id="q3b-search" class="form-control q3b-search" type="text" placeholder="🔎 بحث بالاسم" value="${esc(bQuery)}" oninput="q3BoardSearch(this.value)" autocomplete="off">
+      <div class="q3b-btns">
+        <button type="button" class="q3b-btn ${boardCol === 'total' ? 'on' : ''}" onclick="q3BoardTotal()">🏆 الترتيب العام</button>
+        <button type="button" class="q3b-btn ${bDetail ? 'on' : ''}" onclick="q3BoardDetail()">🔎 تفصيل</button>
+        <button type="button" class="q3b-btn" onclick="q3BoardRefresh()">🔄 تحديث</button>
+      </div>
+      <div id="q3b-out"></div>`;
+    renderOut();
+  }
+
+  function renderOut() {
+    const out = $('q3b-out'); if (!out) return;
+    const d = boardData(); if (!d || !d.cid) return;
+    const steps = d.steps || [], q = norm(bQuery);
+    const rows = (d.rows || []).filter((r) => {
+      if (bStage) { const a = accOf(r.user_id); if (!a || a.stageCode !== bStage) return false; }
+      return !q || norm(r.name).indexOf(q) !== -1;
+    });
+    /* المسجّلون: الخدام النشطون (بنفس الفلاتر) + كل من له محاولة */
+    const ids = new Set();
+    ACC().forEach((a) => { if (a.active && a.role === 'servant' && (!bStage || a.stageCode === bStage) && (!q || norm(a.name).indexOf(q) !== -1)) ids.add(a.id); });
+    rows.forEach((r) => ids.add(r.user_id));
+    const registered = ids.size;
+    const finished = rows.filter((r) => ((r.steps || {})[0] || {}).score != null).length;
+    const scored = rows.filter((r) => r.total > 0);
+    const avg = scored.length ? Math.round(scored.reduce((t, r) => t + r.score / r.total, 0) / scored.length * 100) : 0;
+    const band = !scored.length ? ['لا نتائج بعد', 'mid'] : avg >= 80 ? ['ممتاز', 'good'] : avg >= 50 ? ['جيد', 'mid'] : ['يحتاج دفعة', 'low'];
+    const C = 2 * Math.PI * 54, dash = (C * avg / 100).toFixed(1);
+
+    const chips = [];
+    if (bStage) chips.push(`<span class="q3b-chip">المرحلة: <b>${esc(stageName(bStage))}</b><button type="button" onclick="q3BoardStage('')" aria-label="إزالة">✕</button></span>`);
+    if (q) chips.push(`<span class="q3b-chip">بحث: <b>${esc(bQuery)}</b><button type="button" onclick="q3BoardQ()" aria-label="إزالة">✕</button></span>`);
+    if (chips.length) chips.push('<button type="button" class="q3b-clear" onclick="q3BoardClear()">مسح الكل</button>');
+
+    const card = `<div class="q3b-card">
+      <div class="q3b-ring"><svg viewBox="0 0 140 140" aria-hidden="true">
+        <circle cx="70" cy="70" r="65" class="ticks"/><circle cx="70" cy="70" r="54" class="track"/>
+        <circle cx="70" cy="70" r="54" class="arc" stroke-dasharray="${dash} ${C.toFixed(1)}" transform="rotate(-90 70 70)"/></svg>
+        <div class="q3b-pct">${scored.length ? `<b>${ar(avg)}</b><small>%</small>` : '<b>—</b>'}</div></div>
+      <h3>متوسط درجات الفريق</h3>
+      <p class="q3b-band"><span class="${band[1]}">${band[0]}</span>${d.title ? ' — ' + esc(d.title) : ''}</p>
+      <div class="q3b-line"><span><i class="dot gold"></i>أنهوا الامتحان الشامل</span><b>${ar(finished)}</b></div>
+      <div class="q3b-line"><span><i class="dot"></i>لم يُنهوه بعد</span><b>${ar(Math.max(0, registered - finished))}</b></div>
+      <p class="q3b-note">متوسط الدرجات لـ ${ar(scored.length)} مشارك (من أنهى إصحاحًا واحدًا على الأقل)</p></div>`;
+
     let list, key;
     if (boardCol === 'total') { list = rows.slice().sort((a, b) => a.rank - b.rank); key = (r) => r.score; }
     else {
@@ -436,13 +511,18 @@
     const html = list.map((r, i) => {
       const k = key(r); if (k !== prev) { rk = i + 1; prev = k; }
       const pct = r.total ? Math.round((r.score / r.total) * 100) : 0;
-      const chips = steps.map((s) => { const c = cell(r, s.step); return `<span class="q3-chip ${c.cls}" title="${esc(s.label)}">${s.step === 0 ? 'ش' : 'إ' + ar(s.step)} ${c.txt}</span>`; }).join('');
+      const chipsHtml = bDetail ? `<div class="q3-chips">${steps.map((s) => { const c = cell(r, s.step); return `<span class="q3-chip ${c.cls}" title="${esc(s.label)}">${s.step === 0 ? 'ش' : 'إ' + ar(s.step)} ${c.txt}</span>`; }).join('')}</div>` : '';
       const medal = rk === 1 ? '🥇' : rk === 2 ? '🥈' : rk === 3 ? '🥉' : ar(rk);
       return `<div class="live-row"><span class="live-rank">${medal}</span><div class="live-info"><div class="live-name">${esc(r.name || '—')}</div>
-        <div class="q3-chips">${chips}</div><div class="live-bar"><i style="width:${pct}%"></i></div></div>
+        ${chipsHtml}<div class="live-bar"><i class="${pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low'}" style="width:${pct}%"></i></div></div>
         <span class="badge badge-blue" dir="ltr">${ar(r.score)} / ${ar(r.total)}</span></div>`;
     }).join('');
-    box.innerHTML = `${pick}${boardCid ? `<p style="font-size:.8rem;color:var(--text-muted);margin:0 0 8px">مسابقة سابقة: ${esc(d.title || d.cid)} (للعرض فقط)</p>` : ''}<div class="live-sum"><div><strong>${ar(rows.length)}</strong><span>مشارك</span></div><div><strong>${ar(rows.filter((r) => ((r.steps || {})[0] || {}).score != null).length)}</strong><span>أنهوا الشامل</span></div></div>${sel}${html || '<p class="results-empty">لا نتائج لهذا العمود بعد.</p>'}`;
+    out.innerHTML = `${chips.length ? `<div class="q3b-chips">${chips.join('')}</div>` : ''}
+      <p class="q3b-summary">${ar(registered)} مسجّل — ${ar(rows.length)} شاركوا — ${ar(Math.max(0, steps.length - 1))} إصحاحات</p>
+      ${card}
+      ${boardCid ? `<p style="font-size:.8rem;color:var(--text-muted);margin:0 0 8px">مسابقة سابقة: ${esc(d.title || d.cid)} (للعرض فقط)</p>` : ''}
+      <div class="live-sum"><div><strong>${ar(rows.length)}</strong><span>مشارك</span></div><div><strong>${ar(finished)}</strong><span>أنهوا الشامل</span></div></div>
+      ${html || '<p class="results-empty">لا نتائج مطابقة.</p>'}`;
   }
 
   /* ============================================================
