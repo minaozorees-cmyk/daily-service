@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=2.0.7" />
+  <link rel="stylesheet" href="css/app.css?v=3.0.0" />
 </head>
 <body>
 
@@ -748,14 +748,15 @@
 
       <div id="admin-sub-unlock" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">🔑 أكواد فتح المسابقة</div></div>
-        <p class="json-hint" style="margin-bottom:12px;">المسابقة تُقفل بعد أول محاولة أو بانتهاء الوقت. الكود يخص خادمًا واحدًا، يُستعمل مرة واحدة، ويسمح له بمحاولة إضافية أو بالحل بعد انتهاء الوقت. سلّمه للخادم بنفسك.</p>
+        <p class="json-hint" style="margin-bottom:12px;">لكل إصحاح محاولة واحدة فقط، وتُستهلك أيضًا إن غادر الخادم الصفحة أثناء الحل. الكود يخص خادمًا واحدًا وإصحاحًا واحدًا، يُستعمل مرة واحدة، ويعطيه محاولة واحدة جديدة. يصل الكود تلقائيًا إلى تطبيق الخادم المحدد.</p>
         <div class="form-group"><label class="form-label">الخادم:</label><select id="admin-unlock-user" class="form-control"></select></div>
+        <div class="form-group"><label class="form-label">الإصحاح:</label><select id="admin-unlock-step" class="form-control"></select></div>
         <div class="form-group"><label class="form-label">مدة صلاحية الكود:</label>
           <div style="display:grid; grid-template-columns:1fr 1.2fr; gap:8px;">
             <input type="number" min="1" id="admin-unlock-amount" class="form-control" value="24" aria-label="المدة" />
             <select id="admin-unlock-unit" class="form-control" aria-label="الوحدة"><option value="m">دقائق</option><option value="h" selected>ساعات</option><option value="d">أيام</option></select>
           </div>
-          <p class="json-hint">من ٥ دقائق إلى ٧ أيام. الصلاحية تُفحص لحظة التسليم لا لحظة البدء، فتأكد أن المدة تكفي لحل الاختبار.</p></div>
+          <p class="json-hint">من ٥ دقائق إلى ٧ أيام. الصلاحية تُفحص لحظة بدء الأسئلة فقط، ولا تؤثر على مدة الحل.</p></div>
         <button class="btn btn-gold" onclick="adminCreateUnlock()">🔑 توليد كود</button>
         <div id="admin-unlock-new" class="sched-note" style="display:none; margin-top:14px;"></div>
         <div class="honor-history-title" style="margin-top:18px;">أكواد المسابقة الحالية</div>
@@ -799,12 +800,7 @@
 
       <div id="admin-sub-live" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">🏅 لوحة النتائج المباشرة</div><span class="live-badge"><i></i>مباشر</span></div>
-        <div class="reading-mode-nav" id="admin-live-filters">
-          <button class="reading-mode-btn active" data-f="last">آخر مسابقة</button>
-          <button class="reading-mode-btn" data-f="best">أعلى درجة</button>
-          <button class="reading-mode-btn" data-f="all">كل المسابقات</button>
-        </div>
-        <div id="admin-live-body"></div>
+        <div id="admin-quiz-board"></div>
         <div style="margin-top:14px;"><button class="btn btn-outline btn-sm" id="export-results-btn" onclick="adminExportResultsXlsx()">⬇️ تصدير النتائج (Excel)</button></div>
       </div>
 
@@ -890,11 +886,12 @@
       <div id="admin-sub-json" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">⬆️ إدارة المحتوى ورفع ملفات JSON</div></div>
         <div class="form-group">
-          <label class="form-label">تعديل أسئلة المسابقة (صيغة JSON):</label>
+          <label class="form-label">أسئلة المسابقة (ألصق ملف مسابقة بطرس أو صيغة v3):</label>
           <textarea id="owner-contest-json" class="form-control" style="font-family:monospace; direction:ltr; text-align:left; min-height:170px;"></textarea>
         </div>
+        <div id="owner-contest-preview" style="margin-bottom:10px;"></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-gold" onclick="saveOwnerContestJson()">⬆️ تحديث أسئلة المسابقة</button>
+          <button class="btn btn-gold" id="owner-contest-btn" onclick="saveOwnerContestJson()">فحص ورفع الأسئلة</button>
         </div>
       </div>
     </section>
@@ -1024,19 +1021,20 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=2.0.7"></script>
-<script src="js/config.js?v=2.0.7"></script>
-<script src="js/supa.js?v=2.0.7"></script>
-<script src="js/auth.js?v=2.0.7"></script>
-<script src="js/sync.js?v=2.0.7"></script>
-<script src="js/books.js?v=2.0.7"></script>
-<script src="js/xlsx-lite.js?v=2.0.7"></script>
-<script src="js/app.js?v=2.0.7"></script>
-<script src="js/admin15.js?v=2.0.7"></script>
-<script src="js/admin16.js?v=2.0.7"></script>
-<script src="js/admin20.js?v=2.0.7"></script>
-<script src="js/admin21.js?v=2.0.7"></script>
-<script src="js/update.js?v=2.0.7"></script>
-<script src="js/pwa.js?v=2.0.7"></script>
+<script src="js/version.js?v=3.0.0"></script>
+<script src="js/config.js?v=3.0.0"></script>
+<script src="js/supa.js?v=3.0.0"></script>
+<script src="js/auth.js?v=3.0.0"></script>
+<script src="js/sync.js?v=3.0.0"></script>
+<script src="js/books.js?v=3.0.0"></script>
+<script src="js/xlsx-lite.js?v=3.0.0"></script>
+<script src="js/app.js?v=3.0.0"></script>
+<script src="js/admin15.js?v=3.0.0"></script>
+<script src="js/admin16.js?v=3.0.0"></script>
+<script src="js/admin20.js?v=3.0.0"></script>
+<script src="js/admin21.js?v=3.0.0"></script>
+<script src="js/quiz3.js?v=3.0.0"></script>
+<script src="js/update.js?v=3.0.0"></script>
+<script src="js/pwa.js?v=3.0.0"></script>
 </body>
 </html>
