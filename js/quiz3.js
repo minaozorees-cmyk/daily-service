@@ -507,7 +507,55 @@
     $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'تأكيد الرفع (سيستبدل المسابقة الحالية)');
   };
 
-  window.Quiz3Tools = { normalize: normalize, pickChapter: pickChapter, pickFinal: pickFinal };   // للاختبار اليدوي من الـconsole
+  /* v3.0.3: رفع أكثر من ملف JSON للسفر الواحد ودمجها في مسابقة واحدة قبل الفحص */
+  function mergeFiles(list) {
+    const errs = [], kind = (j) => (j && j.v === 3 && Array.isArray(j.chapters)) ? 'v3' : (j && Array.isArray(j.books) ? 'peter' : 'bad');
+    list.forEach((x) => { if (kind(x.json) === 'bad') errs.push('الملف «' + x.name + '»: صيغة غير معروفة (المتوقع ملف مسابقة بطرس أو v3)'); });
+    if (errs.length) return { errs: errs };
+    const kinds = list.map((x) => kind(x.json));
+    if (kinds.some((k) => k !== kinds[0])) return { errs: ['لا يمكن دمج ملفات بصيغ مختلفة (بطرس مع v3). ارفع كل صيغة على حدة.'] };
+    const title = (list.find((x) => x.json.title) || { json: {} }).json.title || '', timing = (list.find((x) => x.json.timing) || { json: {} }).json.timing;
+    const seen = {}, dup = (key, name) => { if (seen[key]) { errs.push('الإصحاح مكرر بين الملفات: ' + name); return true; } seen[key] = 1; return false; };
+    let out;
+    if (kinds[0] === 'peter') {
+      out = { title: title, books: [] }; if (timing) out.timing = timing;
+      list.forEach((x) => x.json.books.forEach((b) => {
+        const key = b.bookId || b.name; let t = out.books.find((y) => (y.bookId || y.name) === key);
+        if (!t) { t = Object.assign({}, b, { chapters: [], finalQuestions: [] }); out.books.push(t); }
+        (b.chapters || []).forEach((ch) => { if (!dup('p|' + key + '|' + parseInt(ch.num, 10), (b.name || key) + ' إصحاح ' + ch.num)) t.chapters.push(ch); });
+        (b.finalQuestions || []).forEach((fq) => t.finalQuestions.push(fq));
+      }));
+    } else {
+      out = { v: 3, title: title, timing: timing || { q: DEF_Q, tl: DEF_TL }, chapters: [], final: [] };
+      list.forEach((x) => {
+        x.json.chapters.forEach((ch) => { if (!dup('v|' + (ch.bookId || ch.book) + '|' + ch.num, (ch.book || '') + ' إصحاح ' + ch.num)) out.chapters.push(ch); });
+        (x.json.final || []).forEach((fq) => out.final.push(fq));
+      });
+      out.chapters.forEach((c, i) => { (c.qs || []).forEach((q, k) => { q.id = 'c' + (i + 1) + 'q' + (k + 1); }); });
+      out.final.forEach((q, i) => { q.id = 'f' + (i + 1); });
+    }
+    return errs.length ? { errs: errs } : { data: out, errs: [] };
+  }
+  window.ownerContestFilesPicked = async function (inp) {
+    if (!requireRole('owner')) { inp.value = ''; return; }
+    const files = Array.from(inp.files || []), box = $('owner-contest-preview'), fail = (m) => { if (box) box.innerHTML = '<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>' + m.map(esc).join('<br>') + '</div>'; };
+    inp.value = '';
+    if (!files.length) return;
+    staged = null; $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'فحص ورفع الأسئلة');
+    const list = [], errs = [];
+    for (const f of files) {
+      if (f.size > 1500000) { errs.push('الملف «' + f.name + '» أكبر من الحد (١٫٥ ميجا)'); continue; }
+      try { list.push({ name: f.name, json: JSON.parse(await f.text()) }); } catch (e) { errs.push('الملف «' + f.name + '»: خطأ في صيغة JSON'); }
+    }
+    if (errs.length) return fail(errs);
+    const m = mergeFiles(list);
+    if (!m.data) return fail(m.errs);
+    $('owner-contest-json').value = JSON.stringify(m.data);
+    showToast('تم دمج ' + ar(list.length) + ' ملف');
+    window.saveOwnerContestJson();
+  };
+
+  window.Quiz3Tools = { normalize: normalize, mergeFiles: mergeFiles, pickChapter: pickChapter, pickFinal: pickFinal };   // للاختبار اليدوي من الـconsole
 
   /* ---------- تشغيل ---------- */
   document.addEventListener('DOMContentLoaded', () => { setTimeout(recoverActive, 1500); });
