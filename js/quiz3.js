@@ -81,9 +81,20 @@
       ${pend ? '<div class="sched-note">⏳ بعض إجاباتك محفوظة على جهازك وستُرسل فور عودة الاتصال.</div>' : ''}
       <div class="q3-rules">محاولة واحدة لكل إصحاح · الخروج من المسابقة أثناء الأسئلة (بالانتقال لتبويب آخر أو مغادرة التطبيق) يُلغي المحاولة · لن تظهر درجتك إلا بعد الامتحان الشامل.</div>
       ${rows.join('')}
-      <details class="q3-manual"><summary>لدي كود من المسؤول</summary>
+      ${manualHtml()}`;
+  }
+  /* v3.0.1: خانة الكود اليدوي مشتركة بين الشاشة الرئيسية وشاشة ما بعد الشامل */
+  function manualHtml() {
+    return `<details class="q3-manual"><summary>لدي كود من المسؤول</summary>
         <div class="q3-manual-row"><input id="q3-code" class="form-control" dir="ltr" placeholder="XXXXX-XXXXX" autocapitalize="characters" />
         <button class="btn btn-primary btn-sm" onclick="q3UseTypedCode()">استخدام</button></div></details>`;
+  }
+  /* v3.0.1: بعد الشامل تبقى الإعادة بالكود ممكنة: نعرض الإصحاحات التي لها كود جاهز + خانة الكود */
+  function retryBlock(c) {
+    const rows = [];
+    for (let s = 1; s <= c.chapters.length; s++) if (info(s).done && codeFor(s)) rows.push(row(c, s));
+    if (info(0).done && codeFor(0)) rows.push(row(c, 0));
+    return (rows.length ? '<div class="q3-rules">فتح لك المسؤول محاولة إعادة. تُحتسب آخر نتيجة مكتملة.</div>' + rows.join('') : '') + manualHtml();
   }
   function row(c, s) {
     const st = status(c, s), k = codeFor(s), label = esc(stepLabel(c, s));
@@ -251,7 +262,7 @@
     const done = Q, s = ls();
     Sync.quizOp({ t: 'qdone', attempt: done.id, step: done.step, picked: done.qs.map((q) => q.id), answers: done.answers, secs: Math.round((Date.now() - done.t0) / 1000) });
     s.steps[done.step] = Object.assign({}, s.steps[done.step], { done: true, used: true }); s.active = null; lsSave(s);
-    Q = null; view = 'saved';
+    Q = null; view = 'saved'; setStore(REV, null);   // v3.0.1: نتيجة محفوظة قد تتغيّر بإعادة بعد الشامل
     const c = contest(), box = el(), isFinal = done.step === 0;
     box.innerHTML = `<div class="q3-saved"><div class="q3-saved-ic">✅</div><h3>تم حفظ إجاباتك</h3>
       <p id="q3-sync">${Sync.pendingCount() ? '⏳ ستُرسل للمسؤول فور توفر الاتصال.' : '📤 أُرسلت للمسؤول.'}</p>
@@ -321,7 +332,8 @@
     const pct = d.total_total ? Math.round((d.total_score / d.total_total) * 100) : 0;
     el().innerHTML = `<div class="q3-final"><div class="q3-final-ic">🏆</div><h3>أنهيت المسابقة</h3>
       <div class="q3-final-score" dir="ltr">${ar(d.total_score)} / ${ar(d.total_total)} · ${ar(pct)}%</div></div>
-      ${(d.steps || []).map((s) => `<details class="q3-step"><summary><span>${esc(s.title)}</span><b dir="ltr">${ar(s.score)} / ${ar(s.total)}</b></summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`).join('')}`;
+      ${(d.steps || []).map((s) => `<details class="q3-step"><summary><span>${esc(s.title)}</span><b dir="ltr">${ar(s.score)} / ${ar(s.total)}</b></summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`).join('')}
+      ${retryBlock(c)}`;
   }
 
   /* ---------- نقاط الدخول التي يستدعيها app.js ---------- */
@@ -331,7 +343,7 @@
 
   /* خطاف Sync: نتيجة عمليات البدء/التسليم/الإلغاء من الطابور */
   Sync.hook({
-    ok: function (op) { if (op.t === 'qdone') { Sync.pull(); } },
+    ok: function (op) { if (op.t === 'qdone') { setStore(REV, null); Sync.pull(); } },
     drop: function (op, msg) {
       const s = ls();
       if (op.t === 'qstart' || op.t === 'qdone') { s.steps[op.step] = {}; lsSave(s); }
