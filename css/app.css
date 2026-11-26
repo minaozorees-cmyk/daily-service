@@ -2174,3 +2174,161 @@
 .q3-chip.ok { background: var(--success-soft); color: var(--success); font-weight: 700; }
 .q3-chip.bad { background: #fee2e2; color: #b91c1c; }
 .q3-chip.run { background: #fef3c7; color: #b45309; }
+
+/* ===== v3.0.2: صف أزرار الإدارة بنفس شكل راديو الدرج (Uiverse smooth-pug-7 by 00Kubi, MIT) ===== */
+#admin-sub-nav.drawer-radios {
+  overflow: visible;
+  padding: 0.5rem;
+  margin-bottom: 14px;
+}
+#admin-sub-nav .sub-btn {
+  flex: 1 1 auto;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  min-height: 44px; box-sizing: border-box;
+  padding: 0.7rem 0.6rem;
+  border: none; border-radius: 0.7rem;
+  white-space: nowrap;
+  font-family: inherit; font-size: 0.82rem; font-weight: 500;
+  color: var(--drw-pill-color);
+  background: var(--drw-pill-bg);
+  box-shadow: var(--drw-pill-shadow);
+  transition: all 0.2s ease;
+}
+@media (hover: hover) {
+  #admin-sub-nav .sub-btn:hover {
+    background: var(--drw-hover-bg);
+    transform: translateY(-1px);
+    box-shadow: var(--drw-hover-shadow);
+  }
+  #admin-sub-nav .sub-btn.active:hover { transform: translateY(1px); }
+}
+#admin-sub-nav .sub-btn.active {
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  border: none; color: #fff; font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.2),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.1),
+    3px 3px 8px rgba(59, 130, 246, 0.3);
+  transform: translateY(2px);
+  animation: drw-select 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* الشرارات: نفس قواعد الدرج بمحدِّد الأزرار (الحركات مُعاد استخدامها) */
+#admin-sub-nav .sub-btn::before,
+#admin-sub-nav .sub-btn::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#admin-sub-nav .sub-btn.active::before,
+#admin-sub-nav .sub-btn.active::after {
+  animation: drw-particles 0.8s ease-out forwards;
+}
+
+#admin-sub-nav .sub-btn::before {
+  background: #60a5fa;
+  box-shadow: 0 0 6px #60a5fa;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#admin-sub-nav .sub-btn::after {
+  background: #93c5fd;
+  box-shadow: 0 0 8px #93c5fd;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#admin-sub-nav .sub-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    rgba(59, 130, 246, 0.3) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#admin-sub-nav .sub-btn.active::after {
+  opacity: 1;
+  animation: drw-sparkle-bg 1s ease-out forwards;
+}
+
+#admin-sub-nav .sub-btn.active {
+  overflow: visible;
+}
+
+#admin-sub-nav .sub-btn.active::before {
+  box-shadow:
+    0 0 6px #60a5fa,
+    10px -10px 0 #60a5fa,
+    -10px -10px 0 #60a5fa;
+  animation: drw-particles-top 0.8s ease-out forwards;
+}
+
+#admin-sub-nav .sub-btn.active::after {
+  box-shadow:
+    0 0 8px #93c5fd,
+    10px 10px 0 #93c5fd,
+    -10px 10px 0 #93c5fd;
+  animation: drw-particles-bottom 0.8s ease-out forwards;
+}
+
+#admin-sub-nav .sub-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    rgba(255, 255, 255, 0.5) 0%,
+    transparent 50%
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#admin-sub-nav .sub-btn.active::before {
+  animation: drw-ripple 0.8s ease-out;
+}
+
+#admin-sub-nav .sub-btn.active {
+  position: relative;
+}
+
+#admin-sub-nav .sub-btn.active::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    rgba(59, 130, 246, 0.5),
+    rgba(37, 99, 235, 0.5)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: drw-border-glow 1.5s ease-in-out infinite alternate;
+}
+
+#admin-sub-nav .sub-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  #admin-sub-nav .sub-btn, #admin-sub-nav .sub-btn.active { transition: none; animation: none; }
+  #admin-sub-nav .sub-btn::before, #admin-sub-nav .sub-btn::after { animation: none !important; }
+}
