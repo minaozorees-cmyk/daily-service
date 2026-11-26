@@ -2133,3 +2133,44 @@
   .drawer-radios .drawer-item .drawer-name::before,
   .drawer-radios .drawer-item .drawer-name::after { animation: none !important; transition: none; }
 }
+
+/* ===== v3.0 — مسابقة الإصحاحات (على نمط مسابقة بطرس) ===== */
+.q3-prog { margin-bottom: 12px; }
+.q3-prog-top { display: flex; justify-content: space-between; font-size: .82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
+.q3-rules { font-size: .8rem; color: var(--text-muted); background: var(--bg-alt); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.7; }
+.q3-row { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1.5px solid var(--border, #e5e7eb); border-radius: 14px; margin-bottom: 8px; background: var(--card, #fff); }
+.q3-row .q3-ic { font-size: 1.3rem; }
+.q3-row .q3-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.q3-row .q3-info strong { font-size: .94rem; }
+.q3-row .q3-info small { font-size: .76rem; color: var(--text-muted); }
+.q3-row.q3-locked { opacity: .55; }
+.q3-row.q3-done { border-color: var(--success); background: var(--success-soft); }
+.q3-row.q3-ready { border-color: var(--primary-light); }
+.q3-row.q3-needcode, .q3-row.q3-closed { border-color: var(--gold, #d97706); }
+.q3-manual { margin-top: 10px; font-size: .85rem; }
+.q3-manual-row { display: flex; gap: 8px; margin-top: 8px; }
+.q3-read-h { font-weight: 800; font-size: 1.05rem; color: var(--primary); margin-bottom: 10px; }
+.q3-text { max-height: 55vh; overflow-y: auto; line-height: 2; font-size: 1rem; padding: 4px 2px; }
+.q3-verse { margin: 0 0 6px; } .q3-verse sup { color: var(--primary-light); font-weight: 700; margin-inline-end: 4px; }
+.q3-bar { display: flex; gap: 8px; justify-content: space-between; margin-top: 14px; }
+.q3-type { font-size: 1.3rem; margin-bottom: 6px; }
+.q3-tl-hint { font-size: .8rem; color: var(--text-muted); margin-bottom: 8px; }
+.q3-tl-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: start; padding: 12px; margin-bottom: 8px; border: 1.5px solid var(--border, #e5e7eb); border-radius: 14px; background: var(--card, #fff); font: inherit; cursor: pointer; }
+.q3-tl-item.picked { border-color: var(--primary-light); background: var(--primary-soft); }
+.q3-tl-n { min-width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; opacity: 0; }
+.q3-tl-item.picked .q3-tl-n { opacity: 1; }
+.q3-saved, .q3-final { text-align: center; padding: 24px 12px; }
+.q3-saved-ic, .q3-final-ic { font-size: 2.6rem; }
+.q3-note { font-size: .82rem; color: var(--text-muted); }
+.q3-final-score { font-size: 1.6rem; font-weight: 800; color: var(--primary); margin: 6px 0 14px; }
+.q3-step { border: 1.5px solid var(--border, #e5e7eb); border-radius: 14px; margin-bottom: 8px; padding: 0 12px; }
+.q3-step summary { display: flex; justify-content: space-between; gap: 8px; padding: 12px 0; font-weight: 700; cursor: pointer; }
+.q3-rev { border-inline-start: 4px solid var(--danger, #dc2626); padding: 8px 10px; margin: 0 0 10px; background: var(--bg-alt); border-radius: 8px; font-size: .88rem; line-height: 1.8; }
+.q3-rev.ok { border-inline-start-color: var(--success); }
+.q3-rev-q { font-weight: 700; }
+.q3-mine { color: var(--danger, #dc2626); }
+.q3-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.q3-chip { font-size: .7rem; padding: 2px 7px; border-radius: 999px; background: var(--bg-alt); direction: ltr; }
+.q3-chip.ok { background: var(--success-soft); color: var(--success); font-weight: 700; }
+.q3-chip.bad { background: #fee2e2; color: #b91c1c; }
+.q3-chip.run { background: #fef3c7; color: #b45309; }
