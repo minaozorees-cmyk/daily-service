@@ -15,7 +15,8 @@ const Sync = (function () {
     outbox: 'ds_v2_outbox', meta: 'ds_v2_sync_meta', clock: 'ds_v2_clock', bests: 'ds_v2_bests',
     legacy: 'ds_v2_legacy_v11', ver: 'ds_v2_sync_v', cid: 'ds_v2_server_cid', books: 'ds_v2_books',
     review: 'ds_v2_review', sections: 'ds_v2_book_sections',   // v1.4
-    sig: 'ds_v2_reset_sig'                                      // v1.5: آخر قيم إشارات المسح (مفتاح مستقل لا يُمسح مع الكاش)
+    sig: 'ds_v2_reset_sig',                                     // v1.5: آخر قيم إشارات المسح (مفتاح مستقل لا يُمسح مع الكاش)
+    qh: 'ds_v2_q_hash'                                          // v3.0.5: «cid|بصمة» آخر أسئلة نُزّلت (لتجنّب تنزيلها كل دورة)
   };
   const TASKS = ['reading', 'meditation', 'prayer', 'challenge'];
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -278,7 +279,11 @@ const Sync = (function () {
     return true;
   }
   async function pullContest(changed, ep) {
-    const r = await Auth.rpc('contest_get_current', {});
+    /* v3.0.5: نرسل بصمة الأسئلة المحفوظة؛ لو لم تتغيّر لا ينزّل السيرفر النص الكامل (كان يُنزَّل كل دورة). لو الدالة غير موجودة (29 لم يُشغَّل) نرجع للقديمة */
+    const hv = (lraw(K.qh) || '').split('|');
+    const have = (lraw(KEYS.contest) !== null && hv.length === 2 && hv[0] === lraw(K.cid) && hv[1]) ? hv[1] : null;
+    let r = await Auth.rpc('contest_get_current_v', { p_have: have });
+    if (!r.ok && !r.offline && !r.authLost) r = await Auth.rpc('contest_get_current', {});
     if (!r.ok) return !(r.offline || r.authLost);
     if (ep !== epoch) return false;
     const d = r.data;
@@ -298,8 +303,12 @@ const Sync = (function () {
       bookId: c.book_id || null, startsAt: c.starts_at || null, endsAt: c.ends_at || null, state: c.state || 'open'
     };
     // الأسئلة نص JSON خام كما حُفظ (يحفظ ترتيب المفاتيح فيبقى contestId() ثابتًا). null = لم تبدأ بعد (لا تُرسل للخادم قبل البداية).
-    const qraw = typeof c.questions === 'string' ? c.questions : '[]';
-    setIfChanged(KEYS.contest, qraw, changed, 'config');
+    if (c.same === true && lraw(KEYS.contest) !== null) { /* الأسئلة لم تتغيّر: نُبقي النسخة المحلية */ }
+    else {
+      const qraw = typeof c.questions === 'string' ? c.questions : '[]';
+      setIfChanged(KEYS.contest, qraw, changed, 'config');
+      if (typeof c.qhash === 'string' && typeof c.cid === 'string') lsetRaw(K.qh, c.cid + '|' + c.qhash);
+    }
     setIfChanged(KEYS.schedule, JSON.stringify(sched), changed, 'config');
     if (typeof c.cid === 'string') setIfChanged(K.cid, c.cid, changed, 'config');
     return true;
@@ -456,15 +465,7 @@ const Sync = (function () {
       const d = Object.assign({}, r.data); delete d.server_now;
       setIfChanged(QK.state, JSON.stringify(d), changed, 'quiz');
     }
-    if (u.role === 'admin' || u.role === 'owner') {
-      const b = await Auth.rpc('staff_quiz_board', { p_cid: null });
-      if (!b.ok) return !(b.offline || b.authLost);
-      if (ep !== epoch) return false;
-      if (b.data && typeof b.data === 'object') {
-        const d = Object.assign({}, b.data); delete d.server_now;
-        setIfChanged(QK.board, JSON.stringify(d), changed, 'quiz');
-      }
-    }
+    /* v3.0.5: لوحة النتائج (staff_quiz_board) لها مؤقّت مستقل في quiz3.js ولم تعد جزءًا من دورة pull الطويلة */
     return true;
   }
 
@@ -548,7 +549,7 @@ const Sync = (function () {
 
   /* ---------- التهيئة والترحيل (مرة واحدة لكل جهاز) ---------- */
   function clearCaches() {
-    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections, K.sig, 'ds_v3_state', 'ds_v3_board', 'ds_v3_quiz', 'ds_v3_review'].forEach(ldel);
+    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections, K.sig, K.qh, 'ds_v3_state', 'ds_v3_board', 'ds_v3_quiz', 'ds_v3_review'].forEach(ldel);
     lset(KEYS.progress, {}); lset(KEYS.results, []); lset(KEYS.posts, []);
   }
   /* v1.1 كانت كل البيانات محلية: نحفظ نسخة كاملة، ونُبقي بيانات الحساب الحالي فقط ونرفعها للسيرفر */

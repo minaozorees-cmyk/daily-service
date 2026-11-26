@@ -360,12 +360,42 @@
   let boardCid = null, pastBoard = null, contestList = null, listLoading = false;   // v3.0.4: null = المسابقة الحالية
   function boardData() { return boardCid ? pastBoard : getStore('ds_v3_board', null); }
   window.q3BoardCol = function (v) { boardCol = v; renderBoard(); };
+  let listFailed = false;   // v3.0.5: لو فشلت القائمة (27 لم يُشغَّل مثلًا) لا نعيد المحاولة مع كل رسم
   async function loadContestList() {
-    if (listLoading) return; listLoading = true;
+    if (listLoading || listFailed) return; listLoading = true;
     const r = await Sync.call('staff_contests_list', {});
     listLoading = false;
     if (r.ok && Array.isArray(r.data)) { contestList = r.data; renderBoard(); }
+    else { listFailed = true; setTimeout(() => { listFailed = false; }, 60000); }
   }
+
+  /* v3.0.5: تحديث مستقل للوحة (كل ٦ ثوانٍ وهي ظاهرة) بدل انتظار دورة pull الطويلة (١٥ ثانية + ٨ طلبات) */
+  let boardBusy = false;
+  const boardVisible = () => { const p = $('admin-sub-live'); return !!p && p.style.display !== 'none' && p.offsetParent !== null && !document.hidden; };
+  async function boardFetch(force) {
+    if (boardBusy || boardCid) return;                       // مسابقة سابقة: للعرض فقط
+    if (!force && !boardVisible()) return;
+    const u = me(); if (!u || (u.role !== 'admin' && u.role !== 'owner')) return;
+    boardBusy = true;
+    try {
+      const r = await Auth.rpc('staff_quiz_board', { p_cid: null });
+      if (r.ok && r.data && typeof r.data === 'object') {
+        const d = Object.assign({}, r.data); delete d.server_now;
+        const raw = JSON.stringify(d);
+        let old = null; try { old = localStorage.getItem('ds_v3_board'); } catch (e) {}
+        if (raw !== old) { try { localStorage.setItem('ds_v3_board', raw); } catch (e) {} renderBoard(); }
+      }
+    } catch (e) { /* نتجاهل: المحاولة التالية بعد ٦ ثوانٍ */ }
+    finally { boardBusy = false; }
+  }
+  setInterval(() => boardFetch(false), 6000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) boardFetch(false); });
+  const prevSwitchLive = window.switchAdminSub;
+  window.switchAdminSub = function (panel, btn) {
+    const o = prevSwitchLive.apply(this, arguments);
+    if (panel === 'live') { renderBoard(); boardFetch(true); }
+    return o;
+  };
   window.q3BoardContest = async function (v) {
     boardCol = 'total';
     if (!v) { boardCid = null; pastBoard = null; renderBoard(); return; }
