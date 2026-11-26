@@ -23,6 +23,9 @@ const Sync = (function () {
   const SERVANT_GAP = 60000;   // الخادم: كل دقيقة + عند الفتح والرجوع
   const PAGE = 1000;
   const on = { updated: null, notice: null };
+  const hooks = { ok: null, drop: null };   // v3: يضبطها js/quiz3.js عبر Sync.hook
+  const QK = { state: 'ds_v3_state', board: 'ds_v3_board' };
+  const isQ = function (t) { return t === 'qstart' || t === 'qdone' || t === 'qcancel'; };
 
   /* ---------- تخزين ---------- */
   function lraw(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -134,7 +137,7 @@ const Sync = (function () {
   function rpcName(op) {
     return ({ task: 'save_task', result: 'submit_result', post_new: 'post_create', post_edit: 'post_edit',
       post_pub: 'post_publish', post_del: 'post_delete', post_hide: 'post_hide', like: 'post_like',
-      import_progress: 'import_my_progress' })[op.t];
+      import_progress: 'import_my_progress', qstart: 'quiz_start', qdone: 'quiz_finish', qcancel: 'quiz_cancel' })[op.t];
   }
   function rpcArgs(op) {
     switch (op.t) {
@@ -146,6 +149,9 @@ const Sync = (function () {
       case 'post_del': return { p_id: op.pid };
       case 'post_hide': return { p_id: op.pid, p_hidden: !!op.hidden };
       case 'like': return { p_id: op.pid, p_on: !!op.on };
+      case 'qstart': return { p_cid: op.cid, p_step: op.step, p_attempt: op.attempt, p_code: op.code || null };
+      case 'qdone': return { p_attempt: op.attempt, p_picked: op.picked || [], p_answers: op.answers || {}, p_secs: op.secs || 0 };
+      case 'qcancel': return { p_attempt: op.attempt };
       case 'import_progress': return { p_days: op.days };
     }
     return null;
@@ -166,6 +172,7 @@ const Sync = (function () {
     return { all: all, idx: all.findIndex(function (x) { return x.userId === uid && x.cid === cid; }) };
   }
   function onSuccess(op, r) {
+    if (isQ(op.t)) { try { if (hooks.ok) hooks.ok(op, r); } catch (e) {} emit(['quiz']); return; }
     if (op.t === 'result' && r.data && typeof r.data === 'object') {
       const ref = localResultsRef(op.uid, op.cid);
       if (ref.idx > -1) {
@@ -191,6 +198,7 @@ const Sync = (function () {
   }
   function onDrop(op, r) {
     const m = errMsg(r).toUpperCase();
+    if (isQ(op.t)) { try { if (hooks.drop) hooks.drop(op, m); } catch (e) {} return; }
     if (op.t === 'result' && m.indexOf('STALE_CONTEST') !== -1) {
       undoLocalResult(op);
       notice('تحدّثت المسابقة قبل وصول إجاباتك فلم تُسجَّل هذه المحاولة. افتح المسابقة الحالية وأعد المحاولة.', 'warning');
@@ -437,6 +445,29 @@ const Sync = (function () {
     return true;
   }
 
+  /* v3: حالة مسابقتي (بلا درجات) + أكواد الفتح الموجّهة لي؛ وللإدارة لوحة النتائج المباشرة */
+  async function pullQuiz(changed, ep) {
+    const u = me(), cid = lraw(K.cid);
+    if (!u || !cid) return true;
+    const r = await Auth.rpc('quiz_my_state', { p_cid: cid });
+    if (!r.ok) return !(r.offline || r.authLost);      // دالة SQL لم تُشغَّل بعد (404): نتجاهل بهدوء
+    if (ep !== epoch) return false;
+    if (r.data && typeof r.data === 'object') {
+      const d = Object.assign({}, r.data); delete d.server_now;
+      setIfChanged(QK.state, JSON.stringify(d), changed, 'quiz');
+    }
+    if (u.role === 'admin' || u.role === 'owner') {
+      const b = await Auth.rpc('staff_quiz_board', { p_cid: null });
+      if (!b.ok) return !(b.offline || b.authLost);
+      if (ep !== epoch) return false;
+      if (b.data && typeof b.data === 'object') {
+        const d = Object.assign({}, b.data); delete d.server_now;
+        setIfChanged(QK.board, JSON.stringify(d), changed, 'quiz');
+      }
+    }
+    return true;
+  }
+
   async function pull() {
     const u = me();
     if (pulling || hold || !u) return;
@@ -452,6 +483,7 @@ const Sync = (function () {
       if (!(await pullPaged('/rest/v1/progress?select=user_id,day,tasks,updated_at', 'updated_at', 'prog', applyProgress, changed, ep))) return;
       if (!(await pullPaged('/rest/v1/results?select=id,user_id,user_name,score,total,cid,answers,created_at', 'created_at', 'res', applyResults, changed, ep))) return;
       if (u.role === 'servant') { if (!(await pullBests(changed, ep))) return; }
+      if (!(await pullQuiz(changed, ep))) return;
       if (!(await pullPosts(changed, ep))) return;
       if (u.role === 'admin' || u.role === 'owner') {
         const m = meta();
@@ -481,12 +513,17 @@ const Sync = (function () {
     NO_RESULT: 'لا توجد لك نتيجة في هذه المسابقة.', BAD_BACKUP: 'ملف النسخة الاحتياطية غير صالح أو تالف.',
     /* v1.5 */
     BAD_CONFIRM: 'كلمة التأكيد غير صحيحة. اكتب DELETE بالأحرف الكبيرة.',
-    NOT_FULL_BACKUP: 'هذا الملف ليس نسخة شاملة (v1.5). صدّر «نسخة شاملة» أولًا ثم استعد منها.'
+    NOT_FULL_BACKUP: 'هذا الملف ليس نسخة شاملة (v1.5). صدّر «نسخة شاملة» أولًا ثم استعد منها.',
+    /* v3.0 */
+    NEED_CODE: 'هذا الإصحاح استُهلكت محاولته. اطلب كودًا من المسؤول.', NOT_YET: 'أكمل الإصحاح السابق أولًا.',
+    CLOSED: 'الإصحاح غير مفتوح الآن. اطلب كودًا من المسؤول.', BAD_CODE: 'الكود غير صحيح لهذا الإصحاح أو لهذا الحساب.',
+    CODE_USED: 'هذا الكود استُعمل من قبل.', CODE_EXPIRED: 'انتهت مدة الكود. اطلب كودًا جديدًا.', CANCELLED: 'أُلغيت هذه المحاولة.',
+    MOVED_TO_V3: 'هذه النسخة قديمة. حدّث التطبيق.'
   };
   async function call(name, args) {
     const r = await Auth.rpc(name, args || {});
     if (r.ok) return { ok: true, data: r.data };
-    if (r.offline) return { ok: false, error: 'يلزم اتصال بالإنترنت لهذا الإجراء. حاول مرة أخرى عند توفر الإنترنت.' };
+    if (r.offline) return { ok: false, offline: true, error: 'يلزم اتصال بالإنترنت لهذا الإجراء. حاول مرة أخرى عند توفر الإنترنت.' };
     if (r.authLost) return { ok: false, error: 'انتهت الجلسة. سجّل الدخول من جديد.' };
     const m = errMsg(r).toUpperCase();
     const k = Object.keys(ERR_AR).find(function (x) { return m.indexOf(x) !== -1; });
@@ -511,7 +548,7 @@ const Sync = (function () {
 
   /* ---------- التهيئة والترحيل (مرة واحدة لكل جهاز) ---------- */
   function clearCaches() {
-    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections, K.sig].forEach(ldel);
+    [KEYS.progress, KEYS.results, KEYS.posts, K.bests, K.meta, K.review, K.sections, K.sig, 'ds_v3_state', 'ds_v3_board', 'ds_v3_quiz', 'ds_v3_review'].forEach(ldel);
     lset(KEYS.progress, {}); lset(KEYS.results, []); lset(KEYS.posts, []);
   }
   /* v1.1 كانت كل البيانات محلية: نحفظ نسخة كاملة، ونُبقي بيانات الحساب الحالي فقط ونرفعها للسيرفر */
@@ -592,6 +629,8 @@ const Sync = (function () {
     bests: function () { return lget(K.bests, {}); },
     call: call, fetchAll: fetchAll, nowMs: nowMs, isoToLocal: function (iso) { const q = isoToCairoParts(iso); return q.d ? q.d + 'T' + q.t : ''; }, books: function () { return lget(K.books, []); },
     setTask: function (dayKey, task, isOn) { if (TASKS.indexOf(task) !== -1) pushOp({ t: 'task', day: keyToIso(dayKey), task: task, on: !!isOn }); },
+    quizOp: function (op) { pushOp(op); },
+    hook: function (h) { hooks.ok = (h && h.ok) || null; hooks.drop = (h && h.drop) || null; },
     submitResult: function (cid, answers, code, prev) { pushOp({ t: 'result', cid: cid, answers: answers || {}, code: code || null, prev: prev || null }); },
     postNew: function (pid, text, vis) { pushOp({ t: 'post_new', pid: pid, text: text, vis: vis === 'public' ? 'public' : 'private' }); },
     postEdit: function (pid, text) { if (validPid(pid)) pushOp({ t: 'post_edit', pid: pid, text: text }); },

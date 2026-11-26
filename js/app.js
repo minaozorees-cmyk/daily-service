@@ -2270,6 +2270,11 @@ function onSyncUpdated(kinds) {
     renderMyResults();
   }
   if (has('posts')) renderPosts();
+  /* v3.0: حالة المسابقة/الأكواد/لوحة النتائج المباشرة */
+  if (has('quiz')) {
+    if (!isQuizInProgress()) renderContest();
+    if (typeof renderQuizBoard === 'function') renderQuizBoard();
+  }
   /* v1.3: وصلت قائمة الأسفار (أو تغيّرت): نحدّث القوائم دون مسح ما يكتبه المسؤول */
   if (isStaffUser(user) && has('books')) {
     const hadBooks = $('admin-plan-book').options.length > 1;
