@@ -2332,3 +2332,16 @@
   #admin-sub-nav .sub-btn, #admin-sub-nav .sub-btn.active { transition: none; animation: none; }
   #admin-sub-nav .sub-btn::before, #admin-sub-nav .sub-btn::after { animation: none !important; }
 }
+
+/* v3.0.6: رأس الصفحة على الهاتف — صفّان منظّمان بدل صفّ مزدحم تتداخل فيه الأزرار مع العنوان.
+   الصف ١: الشعار + العنوان والوصف (سطران كحدٍّ أقصى) + زر الوضع الليلي. الصف ٢: شارة الدور في المنتصف. */
+@media (max-width: 520px) {
+  .header-top { flex-wrap: wrap; row-gap: 12px; align-items: center; }
+  .church-brand { flex: 1 1 calc(100% - 52px); min-width: 0; }
+  .church-title { min-width: 0; }
+  .church-title h1 { font-size: 1.12rem; line-height: 1.35; }
+  .church-title p { font-size: 0.7rem; line-height: 1.55; -webkit-line-clamp: 2; text-wrap: balance; }
+  .header-actions { display: contents; }
+  #themeToggleApp { flex: 0 0 auto; }
+  #current-role-badge { margin-inline: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+}
