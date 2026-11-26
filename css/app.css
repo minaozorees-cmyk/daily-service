@@ -2345,3 +2345,38 @@
   #themeToggleApp { flex: 0 0 auto; }
   #current-role-badge { margin-inline: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* v3.0.7: رأس لوحة النتائج المباشرة (حالة + فلاتر + بحث + أزرار + بطاقة الحلقة) بألوان التطبيق */
+.q3b-status { text-align: center; padding: 11px 14px; margin-bottom: 12px; border-radius: 18px; background: var(--surface-alt); border: 1px solid var(--border); font-size: .84rem; font-weight: 700; color: var(--text); }
+.q3b-filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 10px; }
+.q3b-filters .form-control { flex: 1 1 140px; width: auto; min-width: 0; border-radius: 18px; }
+.q3b-search { width: 100%; margin-bottom: 10px; border-radius: 18px; }
+.q3b-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 12px; }
+.q3b-btn { flex: 1 1 auto; padding: 11px 14px; border-radius: 18px; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text); font-family: inherit; font-size: .84rem; font-weight: 700; cursor: pointer; transition: transform .2s var(--ease), background .2s; }
+.q3b-btn:active { transform: scale(.96); }
+.q3b-btn.on { background: linear-gradient(135deg, #fde68a, #f2c14e); border-color: #f2c14e; color: #3b2a05; box-shadow: 0 6px 18px var(--gold-glow); }
+.q3b-chips { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-bottom: 10px; }
+.q3b-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-alt); font-size: .8rem; color: var(--text-muted); }
+.q3b-chip b { color: var(--text); }
+.q3b-chip button { width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--bg-alt); color: var(--text); cursor: pointer; line-height: 1; }
+.q3b-clear { padding: 6px 14px; border-radius: 999px; border: 1.5px dashed var(--gold); background: transparent; color: var(--gold); font-family: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.q3b-summary { text-align: center; font-size: .86rem; color: var(--text-muted); margin: 0 0 12px; }
+.q3b-card { background: var(--header-grad); color: #fff; border: 1px solid rgba(242,193,78,.55); border-radius: 28px; padding: 22px 20px 16px; margin-bottom: 16px; text-align: center; box-shadow: 0 16px 34px -14px rgba(10,20,80,.55); }
+.q3b-ring { position: relative; width: 150px; height: 150px; margin: 0 auto 10px; }
+.q3b-ring svg { width: 100%; height: 100%; }
+.q3b-ring circle { fill: none; }
+.q3b-ring .ticks { stroke: rgba(255,255,255,.28); stroke-width: 5; stroke-dasharray: 1.2 5.6; }
+.q3b-ring .track { stroke: rgba(255,255,255,.14); stroke-width: 12; }
+.q3b-ring .arc { stroke: #f2c14e; stroke-width: 12; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(242,193,78,.6)); transition: stroke-dasharray .6s var(--ease); }
+.q3b-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px; direction: ltr; }
+.q3b-pct b { font-family: var(--font-display); font-size: 2.3rem; line-height: 1; }
+.q3b-pct small { font-size: .95rem; color: #f2c14e; margin-top: 10px; }
+.q3b-card h3 { font-family: var(--font-display); font-size: 1.2rem; margin: 4px 0 6px; }
+.q3b-band { font-size: .88rem; color: #c3cde6; margin: 0 0 12px; }
+.q3b-band span { font-weight: 800; }
+.q3b-band .good { color: #4ade80; } .q3b-band .mid { color: #fde68a; } .q3b-band .low { color: #f2c14e; }
+.q3b-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; font-size: .95rem; }
+.q3b-line b { font-family: var(--font-display); font-size: 1.15rem; }
+.q3b-line .dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.3); margin-inline-end: 10px; vertical-align: middle; }
+.q3b-line .dot.gold { background: #f2c14e; }
+.q3b-note { font-size: .74rem; color: #c3cde6; margin: 8px 0 0; }
