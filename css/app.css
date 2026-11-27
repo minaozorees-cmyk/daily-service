@@ -2505,3 +2505,19 @@
 .q3-fe { border-top: 1px solid var(--border, #e5e7eb); padding: 8px 0; }
 .q3-fe summary { font-size: .86rem; cursor: pointer; line-height: 1.7; }
 .q3-fe-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+
+/* ===== v3.0.21: النتيجة النهائية (إضافة فقط) ===== */
+#q3f-admin{margin:0 0 12px}
+.q3f-btn{width:100%;padding:12px 14px;border:0;border-radius:12px;background:var(--primary,#1f3a5f);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.q3f-btn small{font-weight:400;opacity:.85}
+.q3f-panel{margin-top:10px;border:1px solid var(--border,#d8dee8);border-radius:12px;padding:10px;background:var(--surface,var(--card,#fff))}
+.q3f-row{display:flex;gap:10px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--border,#e5e9f0)}
+.q3f-row b{flex:none;min-width:30px;text-align:center}
+.q3f-row.top{font-weight:700}
+.q3f-state{margin:10px 0;padding:8px 10px;border-radius:10px;background:var(--warning-soft,#fff3d6);font-size:.92rem}
+.q3f-state.on{background:var(--success-soft,#e4f4ea)}
+.q3f-me{margin:0 0 14px;padding:14px;border-radius:14px;border:1.5px solid var(--success,#1d7a4d);background:var(--success-soft,#e4f4ea)}
+.q3f-me-t{font-weight:700;margin-bottom:8px}
+.q3f-me-g{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center}
+.q3f-me-g strong{display:block;font-size:1.4rem}
+.q3f-me-g span{font-size:.85rem;opacity:.8}
