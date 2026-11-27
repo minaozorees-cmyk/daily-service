@@ -36,9 +36,9 @@ let cleanup=null;
 export function html(title,{verses,back=true}={}){
   return `<section class="cm" id="cm-root">
   <div class="cm-hd">
-    ${back?'<button class="cm-hd__back" type="button" data-a="toBooks"><span data-i="chev" data-s="13"></span>رجوع للأسفار</button>':'<span class="cm-hd__back" style="visibility:hidden" aria-hidden="true">رجوع للأسفار</span>'}
+    ${back?'<button class="cm-hd__back" type="button" data-a="toBooks"><span data-i="chev" data-s="13"></span>رجوع للأسفار</button>':''}
     <div class="cm-hd__t"><b>${esc(title)}</b><small id="cm-bookSub"></small></div>
-    ${verses?'<button class="cm-hd__verses" type="button" data-a="verses">📜 آيات السفر</button>':'<span class="cm-hd__verses" style="visibility:hidden" aria-hidden="true">📜 آيات السفر</span>'}
+    ${verses?'<button class="cm-hd__verses" type="button" data-a="verses">📜 آيات السفر</button>':''}
   </div>
   <section class="cm-map-card" id="cm-card">
     <div class="cm-ambient"></div><div class="cm-grid"></div>
