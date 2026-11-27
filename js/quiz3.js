@@ -14,6 +14,7 @@
     CODE_EXPIRED: 'انتهت مدة الكود. اطلب كودًا جديدًا.', STALE_CONTEST: 'تحدّثت المسابقة. حدّث الصفحة ثم أعد المحاولة.',
     CANCELLED: 'أُلغيت هذه المحاولة.', MOVED_TO_V3: 'هذه النسخة قديمة. حدّث التطبيق.'
   };
+  let CM = null, cmFail = false, cmLoading = false, codeTyped = {};
   let leftNotice = false, view = 'home', Q = null, readStep = null, pendingCode = null, timerId = null, tickT = 0, reviewBusy = false, busy = false;
 
   /* ---------- أدوات ---------- */
@@ -71,17 +72,85 @@
     if (!c) { box.innerHTML = '<p class="results-empty">لا توجد أسئلة حاليًا.</p>'; return; }
     if (finalDone()) return renderDone(c);
     const n = c.chapters.length, doneN = c.chapters.filter((x, i) => info(i + 1).done).length;
+    const useMap = !!CM && !cmFail;
+    if (!CM && !cmFail) loadCM();
     const rows = [];
-    for (let s = 1; s <= n; s++) rows.push(row(c, s));
+    if (!useMap) for (let s = 1; s <= n; s++) rows.push(row(c, s));
     rows.push(row(c, 0));
+    const books = c.chapters.map((x) => x.book).filter((b, i, a) => b && a.indexOf(b) === i);
+    const mapBox = useMap ? `<div class="q3-map">${CM.html(books.length === 1 ? books[0] : 'المسابقة', { verses: false, back: false })}</div>` : '';
     const pend = Sync.pendingCount() > 0;
     box.innerHTML = `
       <div class="q3-prog"><div class="q3-prog-top"><span>تقدّمك في المسابقة</span><strong>${ar(doneN)} / ${ar(n)} إصحاح</strong></div>
         <div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:${Math.round((doneN / n) * 100)}%"></div></div></div>
       ${pend ? '<div class="sched-note">⏳ بعض إجاباتك محفوظة على جهازك وستُرسل فور عودة الاتصال.</div>' : ''}
+      ${mapBox}
       <div class="q3-rules">محاولة واحدة لكل إصحاح · الخروج من المسابقة أثناء الأسئلة (بالانتقال لتبويب آخر أو مغادرة التطبيق) يُلغي المحاولة · لن تظهر درجتك إلا بعد الامتحان الشامل.</div>
       ${rows.join('')}
       ${manualHtml()}`;
+    if (useMap) {
+      const root = box.querySelector('.cm');
+      if (root) CM.init(root, {
+        key: (me() ? me().id : '') + '|' + (Sync.serverCid() || ''),
+        chapters: mapData(c),
+        verify: mapVerify,
+        unlock: () => {},
+        reload: async () => mapData(contest() || c),
+        open: (step) => { const cd = codeTyped[step] || null; delete codeTyped[step]; window.q3Go(step, cd); },
+        resumable: () => false
+      });
+      bindMap();
+    }
+  }
+  /* ---------- v3.0.9: خريطة الإصحاحات (js/chmap.js، تُحمَّل عند الحاجة؛ لو فشل التحميل تبقى قائمة الصفوف) ---------- */
+  function loadCM() {
+    if (CM || cmLoading || cmFail) return;
+    cmLoading = true;
+    let u; try { u = new URL('js/chmap.js?v=' + String(typeof APP_VERSION === 'string' ? APP_VERSION : '').replace(/^v/, ''), document.baseURI).href; } catch (e) { cmFail = true; cmLoading = false; return; }
+    import(u).then((m) => { CM = m; cmLoading = false; if (view === 'home' && !Q && el() && el().isConnected) renderHome(); })
+      .catch(() => { cmFail = true; cmLoading = false; if (view === 'home' && !Q && el() && el().isConnected) renderHome(); });
+  }
+  /* حالة الصف في q3 ← شكل بيانات الخريطة. step = رقم الخطوة (1..n)؛ num = رقم الإصحاح للعرض */
+  function mapData(c) {
+    return c.chapters.map((ch, i) => {
+      const s = i + 1, st = status(c, s), k = codeFor(s), sr = (srv().steps || []).find((x) => x.step === s) || {};
+      const o = { step: s, num: ch.num, sub: ch.book || '', lock: null, first: null, attempts: (sr.attempts | 0) || (info(s).used ? 1 : 0) };
+      const typed = !!codeTyped[s] && !info(s).done;
+      if (st === 'done' || st === 'retry') {
+        o.first = { score: null, total: null };
+        o.msg = st === 'retry' ? 'تم الحفظ — فُتحت لك محاولة إعادة. تُحتسب آخر نتيجة مكتملة.' : 'تم الحفظ. تظهر الدرجة بعد الامتحان الشامل.';
+        if (st === 'retry') o.cta = ' 🔁 إعادة بالكود';
+      } else if (st === 'locked') {
+        o.lock = { why: 'before' }; o.noCode = true; o.msg = 'يُفتح بعد إنهاء الإصحاح السابق.';
+      } else if (st === 'needcode' || st === 'closed') {
+        if (k || typed) { o.cta = ' 🔑 كود جاهز — ابدأ'; o.msg = 'معك كود فتح لهذا الإصحاح. محاولة واحدة.'; }
+        else if (st === 'needcode') { o.lock = { why: 'after' }; o.msg = 'استُهلكت المحاولة. يلزم كود من المسؤول.'; }
+        else if (sr.state === 'upcoming') { o.lock = { why: 'before' }; o.msg = 'لم يُفتح هذا الإصحاح بعد. إن كان معك كود من المسؤول فاستخدمه.'; }
+        else { o.lock = { why: 'after' }; o.msg = 'أُغلق هذا الإصحاح. إن كان معك كود من المسؤول فاستخدمه.'; }
+      }
+      return o;
+    });
+  }
+  async function mapVerify(step, code) {
+    const v = String(code || '').toUpperCase().replace(/[^0-9A-F]/g, '');
+    if (v.length !== 10) return 'bad';
+    const r = await Sync.call('check_unlock_code', { p_code: v });
+    if (!r.ok) return 'error';
+    const d = r.data || {};
+    if (!d.ok) return d.reason === 'USED' ? 'used' : d.reason === 'EXPIRED' ? 'expired' : 'bad';
+    if (d.step !== step) return 'wrongstep';
+    codeTyped[step] = v;
+    return 'ok';
+  }
+  function bindMap() {
+    const box = el(); if (!box || box.dataset.cmBound) return;
+    box.dataset.cmBound = '1';
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-a="chap"]'); if (!b) return;
+      const c = contest(), s = parseInt(b.dataset.n, 10); if (!c || Q || !(s >= 1 && s <= c.chapters.length)) return;
+      const k = codeFor(s), code = status(c, s) === 'ready' ? null : (k ? k.code : (codeTyped[s] || null));
+      delete codeTyped[s]; window.q3Go(s, code);
+    });
   }
   /* v3.0.1: خانة الكود اليدوي مشتركة بين الشاشة الرئيسية وشاشة ما بعد الشامل */
   function manualHtml() {
