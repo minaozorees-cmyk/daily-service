@@ -432,18 +432,34 @@
     }
     return `<div class="q3-rev ${ok ? 'ok' : 'bad'}"><div class="q3-rev-q">${ar(n)}. ${esc(q.q)}</div>${ans}${q.ref ? `<small>📖 ${esc(q.ref)}</small>` : ''}</div>`;
   }
+  /* v3.0.16: شاشة النهاية بتصميم الصورة (كبسولة اسم المسابقة · كأس SVG · النتيجة والحلقة · صفوف الأجزاء · «لدي كود») */
+  const I_BOOK = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 8 4.6 4.5 4.8v12.7c3.5-.2 5.8.4 7.5 1.7 1.7-1.3 4-1.9 7.5-1.7V4.8c-3.5-.2-5.8.4-7.5 1.7Z"/><path d="M12 6.5v12.7"/></svg>';
+  const I_STAR = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8Z"/></svg>';
+  const I_CHEV = '<svg class="q3-step-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   function paintReview(c, d) {
     const pct = d.total_total ? Math.round((d.total_score / d.total_total) * 100) : 0;
-    const lvl = (p) => (p >= 80 ? 'hi' : p >= 50 ? 'mid' : 'lo');
-    const msg = pct >= 90 ? 'ممتاز! بارك الله فيك' : pct >= 70 ? 'أحسنت، استمر' : pct >= 50 ? 'جيد، وتقدر تتحسن' : 'شكرًا لمشاركتك';
-    el().innerHTML = `<div class="q3-final">
-        <img class="q3-final-img" src="img/trophy-celebrate.svg" alt="" />
-        <h3>أنهيت المسابقة</h3><p class="q3-final-msg">${msg}</p>
-        <div class="q3-ring q3-${lvl(pct)}" style="--p:${pct}"><div class="q3-ring-in"><b>${ar(pct)}%</b><small dir="ltr">${ar(d.total_score)} / ${ar(d.total_total)}</small></div></div>
-      </div>
-      <div class="q3-steps-h">تفاصيل كل جزء</div>
-      ${(d.steps || []).map((s) => { const sp = s.total ? Math.round((s.score / s.total) * 100) : 0; return `<details class="q3-step"><summary><span class="q3-step-t">${esc(s.title)}</span><b class="q3-step-s q3-${lvl(sp)}" dir="ltr">${ar(s.score)} / ${ar(s.total)}</b><i class="q3-step-bar"><u class="q3-${lvl(sp)}" style="width:${sp}%"></u></i></summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`; }).join('')}
-      ${retryBlock(c)}`;
+    const msg = pct >= 90 ? 'رائع! أحسنت صنعًا' : pct >= 70 ? 'أحسنت، استمر' : pct >= 50 ? 'جيد، وتقدر تتحسن' : 'شكرًا لمشاركتك';
+    const lvl = pct >= 80 ? 'hi' : pct >= 50 ? 'mid' : 'lo';
+    const title = c && c.title ? String(c.title) : '';
+    el().innerHTML = `<div class="q3-fin">
+        <div class="q3-final">
+          ${title ? `<div class="q3-final-pill"><span aria-hidden="true">🏆</span><span class="q3-final-pill-t">${esc(title)}</span></div>` : ''}
+          <img class="q3-final-img" src="img/trophy-celebrate.svg" alt="" />
+          <h3>أنهيت المسابقة! <span aria-hidden="true">🎉</span></h3>
+          <div class="q3-final-res">
+            <div class="q3-final-sc">
+              <b class="q3-final-num" dir="ltr">${ar(d.total_score)} / ${ar(d.total_total)}</b>
+              <span class="q3-final-lbl">النتيجة النهائية</span>
+              <span class="q3-final-badge">${msg}</span>
+            </div>
+            <div class="q3-ring q3-${lvl}" style="--p:${pct}" role="img" aria-label="${ar(pct)}%"><div class="q3-ring-in"><b dir="ltr">${ar(pct)}%</b></div></div>
+          </div>
+        </div>
+        <div class="q3-steps">
+        ${(d.steps || []).map((s) => `<details class="q3-step"><summary><span class="q3-step-ic ${s.step === 0 ? 'star' : ''}">${s.step === 0 ? I_STAR : I_BOOK}</span><span class="q3-step-t">${esc(s.title)}</span><b class="q3-step-s" dir="ltr">${ar(s.score)} / ${ar(s.total)}</b>${I_CHEV}</summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`).join('')}
+        </div>
+        ${retryBlock(c)}
+      </div>`;
   }
 
   /* ---------- نقاط الدخول التي يستدعيها app.js ---------- */
