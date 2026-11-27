@@ -467,3 +467,12 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 /* v3.0.9: حشوة أصغر ليأخذ المسار عرضًا أكبر على الجوال */
 .q3-map .cm{padding:10px 6px 12px}
 .q3-map .cm .cm-map-card{border-radius:24px}
+
+/* v3.0.23: عقدة الامتحان الشامل في آخر المسار (ذهبية، أكبر قليلًا، بتسمية ثابتة فوقها) */
+.cm-node--final{width:60px;height:60px;outline:2px dashed hsl(44 90% 62% / .42);outline-offset:4px}
+.cm-node--final.cm-node--current{width:72px;height:72px}
+.cm-node--final .cm-node__face{width:26px;height:26px}
+.cm-node--final.cm-node--current .cm-node__face{width:31px;height:31px}
+.cm-node--final .cm-node__face svg{width:100%;height:100%;max-width:none;flex:none}
+.cm-final-label{transform:translate(-50%,-100%);font-size:10.5px;padding:3px 11px;
+  background:rgba(232,196,104,.12);color:#FFE29A;border:1px solid rgba(232,196,104,.42);box-shadow:none}
