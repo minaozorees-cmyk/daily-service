@@ -173,10 +173,29 @@ function validateLogin() {
   return valid;
 }
 
+/* v3.0.22: إيقاف الدخول دقيقة بعد 3 محاولات خاطئة (على هذا الجهاز فقط — حماية واجهة) */
+const LOGIN_FAIL_KEY = 'ds_login_fail', LOGIN_MAX = 3, LOGIN_LOCK_MS = 60000;
+let loginLockTimer = null;
+function lfRead() { try { return JSON.parse(localStorage.getItem(LOGIN_FAIL_KEY)) || { n: 0, until: 0 }; } catch (e) { return { n: 0, until: 0 }; } }
+function lfWrite(o) { try { localStorage.setItem(LOGIN_FAIL_KEY, JSON.stringify(o)); } catch (e) {} }
+function lfRemaining() {
+  const left = (lfRead().until || 0) - Date.now();
+  if (left > LOGIN_LOCK_MS) { lfWrite({ n: 0, until: 0 }); return 0; }   /* ساعة الجهاز اتغيّرت */
+  return left > 0 ? Math.ceil(left / 1000) : 0;
+}
+function lfTick() {
+  const sec = lfRemaining(), label = submitBtn.querySelector('.btn-label');
+  if (sec > 0) { submitBtn.disabled = true; if (label) label.textContent = 'حاول بعد ' + sec + ' ث'; }
+  else { clearInterval(loginLockTimer); loginLockTimer = null; submitBtn.disabled = false; if (label) label.textContent = 'دخول'; }
+}
+function lfStart() { lfTick(); if (!loginLockTimer && lfRemaining() > 0) loginLockTimer = setInterval(lfTick, 1000); }
+if (lfRemaining() > 0) lfStart();
+
 /* إرسال النموذج */
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (submitBtn.disabled) return;
+  if (lfRemaining() > 0) { lfStart(); showToast('محاولات كثيرة. حاول بعد ' + lfRemaining() + ' ثانية.', 'error'); return; }
   clearFieldError(emailWrap, emailError);
   clearFieldError(passwordWrap, passwordError);
 
@@ -186,7 +205,18 @@ loginForm.addEventListener('submit', async (e) => {
   const result = await Auth.login(emailInput.value, passwordInput.value, rememberChk.checked);
   setLoading(submitBtn, false, 'دخول');
 
-  if (!result.ok) { showToast(result.error, 'error'); return; }
+  if (!result.ok) {
+    if (result.badCred) {
+      const st = lfRead(); st.n = (st.n || 0) + 1;
+      if (st.n >= LOGIN_MAX) {
+        lfWrite({ n: 0, until: Date.now() + LOGIN_LOCK_MS }); lfStart();
+        showToast('٣ محاولات خاطئة. تم إيقاف الدخول دقيقة واحدة.', 'error'); return;
+      }
+      lfWrite(st);
+    }
+    showToast(result.error, 'error'); return;
+  }
+  lfWrite({ n: 0, until: 0 });
 
   showToast(`أهلاً ${result.user.name} ✅`, 'success');
   enterApp();

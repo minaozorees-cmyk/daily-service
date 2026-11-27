@@ -172,7 +172,13 @@ const Auth = (function () {
     const r = await Supa.request('POST', '/auth/v1/token?grant_type=password', {
       body: { email: String(email || '').trim().toLowerCase(), password: String(password || '') }
     });
-    if (!r.ok || !r.data || !r.data.access_token) return { ok: false, error: msgFor(r, 'تعذّر تسجيل الدخول.') };
+    if (!r.ok || !r.data || !r.data.access_token) {
+      /* v3.0.22: badCred = رفض بيانات الدخول فقط (لا يُحسب انقطاع الشبكة ولا 429) */
+      const ec = String((r.error && r.error.code) || '').toLowerCase();
+      const em = String((r.error && r.error.message) || '').toLowerCase();
+      const badCred = !r.offline && !r.config && r.status !== 429 && (ec === 'invalid_credentials' || em.indexOf('invalid login') !== -1);
+      return { ok: false, error: msgFor(r, 'تعذّر تسجيل الدخول.'), badCred: badCred };
+    }
     remember = !!rem;
     setSession(r.data);
     return finishSignIn();
