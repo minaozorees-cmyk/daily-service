@@ -3,7 +3,7 @@
 // الربط بالتطبيق عن طريق books/index.js: أزرار popover فيها data-a="chap" data-n فبتعدّي على نفس handler فتح الإصحاح (جلسات/قفل/قراءة)،
 // وأزرار الهيدر data-a="toBooks"/"verses". الكلاسات كلها بادئة cm- (css/app.css).
 const esc=(s)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));   // بدل js/consts.js
-import {derive,stateOf,doneIdx,counts,progIdx,hueFor,trailFrac,snap,grew,STATE_AR,footerText,hudText,popMessage,verifyMsg,ar} from './chmap-logic.js';
+import {derive,stateOf,doneIdx,counts,progIdx,hueFor,hueAt,trailFrac,snap,grew,STATE_AR,footerText,hudText,popMessage,verifyMsg,ar} from './chmap-logic.js';
 
 const NS='http://www.w3.org/2000/svg';
 const idOf=(c)=>c.step!=null?c.step:c.num;   // v3.0.5: معرّف الخطوة (قد يتكرر رقم الإصحاح بين أسفار)
@@ -146,15 +146,17 @@ export function init(root,opts){
     TOTAL_LEN=n>1?pTrail.getTotalLength():0;
     const pts=[]; for(let i=0;i<n;i++) pts.push(n>1?pTrail.getPointAtLength(TOTAL_LEN*((i+0.5)/n)):{x:W/2,y:padTop});
     gTrail.setAttribute('y2',H); gTrail.innerHTML='';
-    pts.forEach((pt,i)=>{ const s=document.createElementNS(NS,'stop'); s.setAttribute('offset',(pt.y/H*100).toFixed(3)+'%'); s.setAttribute('stop-color',`hsl(${hueFor(i,n)} 100% 62%)`); gTrail.appendChild(s); });
+    pts.forEach((pt,i)=>{ const s=document.createElementNS(NS,'stop'); s.setAttribute('offset',(pt.y/H*100).toFixed(3)+'%'); s.setAttribute('stop-color',`hsl(${hueAt(chs,i)} 100% 62%)`); gTrail.appendChild(s); });
     map.querySelectorAll('.cm-node,.cm-node-label').forEach((e)=>e.remove());
     if(headEl){ headEl.remove(); headEl=null; } hereEl=null; nodeEls=[];
-    pts.forEach((pt,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='cm-node'; b.dataset.index=i; b.style.setProperty('--h',hueFor(i,n).toFixed(1)); b.style.left=pt.x+'px'; b.style.top=pt.y+'px'; map.appendChild(b); nodeEls.push(b); });
+    pts.forEach((pt,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='cm-node'; b.dataset.index=i; b.style.setProperty('--h',hueAt(chs,i).toFixed(1)); b.style.left=pt.x+'px'; b.style.top=pt.y+'px'; map.appendChild(b); nodeEls.push(b); });
+    // v3.0.23: تسمية ثابتة فوق عقدة الامتحان الشامل (آخر المسار)
+    if(n>0&&chs[n-1].final){ const l=document.createElement('div'); l.className='cm-node-label cm-final-label'; l.textContent='الامتحان الشامل'; l.style.setProperty('--h','44'); l.style.left=pts[n-1].x+'px'; l.style.top=(pts[n-1].y-40)+'px'; map.appendChild(l); }
   }
   function paintNodes(){
     nodeEls.forEach((b,i)=>{
-      const s=st(i), num=chs[i].num, face=`<span class="cm-node__face">${ar(num)}</span>`;
-      b.className='cm-node cm-node--'+s; b.setAttribute('aria-label',`الإصحاح ${ar(num)} — ${STATE_AR[s]}`);
+      const s=st(i), fin=!!chs[i].final, num=chs[i].num, face=`<span class="cm-node__face">${fin?ic('award',24,2.2):ar(num)}</span>`;
+      b.className='cm-node cm-node--'+s+(fin?' cm-node--final':''); b.setAttribute('aria-label',fin?`الامتحان الشامل — ${STATE_AR[s]}`:`الإصحاح ${ar(num)} — ${STATE_AR[s]}`);
       if(s==='done') b.innerHTML=`${face}<span class="cm-node__badge cm-node__badge--done">${ic('check',11,4.2)}</span>`;
       else if(s==='current') b.innerHTML=`<span class="cm-pulse"></span><span class="cm-pulse"></span>${face}`;
       else if(s==='open') b.innerHTML=`${face}<span class="cm-node__badge cm-node__badge--book">${ic('book',10,2.6)}</span>`;
@@ -166,7 +168,7 @@ export function init(root,opts){
     if(hereEl){ hereEl.remove(); hereEl=null; }
     if(D.cur<0||!nodeEls[D.cur]) return;
     const cur=nodeEls[D.cur]; hereEl=document.createElement('div'); hereEl.className='cm-node-label'; hereEl.textContent='أنت هنا';
-    hereEl.style.setProperty('--h',hueFor(D.cur,N()).toFixed(1)); hereEl.style.left=cur.style.left; hereEl.style.top=(parseFloat(cur.style.top)+56)+'px'; map.appendChild(hereEl);
+    hereEl.style.setProperty('--h',hueAt(chs,D.cur).toFixed(1)); hereEl.style.left=cur.style.left; hereEl.style.top=(parseFloat(cur.style.top)+56)+'px'; map.appendChild(hereEl);
   }
   function paintHud(){
     const c=counts(chs), h=hudText(chs);
@@ -175,7 +177,7 @@ export function init(root,opts){
   }
   function paintFooter(){
     const f=footerText(chs,D,fmtShort), cta=$('cta'), pi=progIdx(chs,D.cur);
-    root.style.setProperty('--hud-h',(pi>=0?hueFor(pi,N()):205).toFixed(1));
+    root.style.setProperty('--hud-h',(pi>=0?hueAt(chs,pi):205).toFixed(1));
     $('locationText').textContent=f.loc; cta.dataset.mode=f.mode; cta.disabled=f.mode==='none';
     cta.innerHTML=`${ic(f.mode==='go'?'play':f.mode==='all'?'award':'lock',16,2.4)} ${esc(f.cta)}`;
     $('btnJump').style.display=pi>=0?'':'none';
@@ -192,7 +194,7 @@ export function init(root,opts){
     if(reduced()||newLen<=oldLen||TOTAL_LEN===0){ setTrail(newLen); return; }
     pTrail.style.opacity='1'; pGlow.style.opacity='.55';
     [pTrail,pGlow].forEach((p)=>{ p.style.transition='none'; p.style.strokeDasharray=`${newLen} ${TOTAL_LEN+10}`; p.style.strokeDashoffset=String(newLen-oldLen); });
-    const head=document.createElementNS(NS,'circle'); head.setAttribute('r','7'); head.setAttribute('fill',`hsl(${hueFor(Math.max(0,progIdx(chs,D.cur)),N())} 100% 94%)`); head.setAttribute('filter','url(#cmHeadGlow)'); head.style.opacity='0'; svg.appendChild(head); headEl=head;
+    const head=document.createElementNS(NS,'circle'); head.setAttribute('r','7'); head.setAttribute('fill',`hsl(${hueAt(chs,Math.max(0,progIdx(chs,D.cur)))} 100% 94%)`); head.setAttribute('filter','url(#cmHeadGlow)'); head.style.opacity='0'; svg.appendChild(head); headEl=head;
     const start=performance.now(), popped=new Set(), dn=doneIdx(chs);
     (function frame(now){
       if(headEl!==head||!root.isConnected) return;
@@ -229,8 +231,8 @@ export function init(root,opts){
   }
   function openPopover(i){
     const c=chs[i], s=st(i), node=nodeEls[i], resum=!!(opts.resumable&&opts.resumable(idOf(c)));
-    activeIdx=i; pop.style.setProperty('--h',hueFor(i,N()).toFixed(1));
-    $('popTitle').textContent='الإصحاح '+ar(c.num);
+    activeIdx=i; pop.style.setProperty('--h',hueAt(chs,i).toFixed(1));
+    $('popTitle').textContent=c.final?'الامتحان الشامل':'الإصحاح '+ar(c.num);
     const sub=$('popSub'); sub.textContent=c.sub||''; sub.style.display=c.sub?'':'none';
     const stt=$('popState'); stt.textContent=STATE_AR[s];
     stt.className='cm-pop__state'+({current:' cm-pop__state--live',open:' cm-pop__state--open',locked:' cm-pop__state--lock',ended:' cm-pop__state--ended'}[s]||'');
@@ -241,7 +243,9 @@ export function init(root,opts){
       if(c.first.score==null){ msg.style.display='block'; msg.textContent=c.msg||'تم الحفظ.'; }
       else{ stats.style.display='flex'; $('popGrade').textContent=ar(c.first.score)+' / '+ar(c.first.total);
       $('popAttempt').textContent=c.attempts>1?ar(c.attempts)+' محاولات':'محاولة واحدة'; }
-      act.innerHTML=go('neon',ic(resum?'play':'book',13,2.6)+(resum?' كمّل الامتحان':(c.cta||' اقرأ الإصحاح')))+btn('ghost','close','إغلاق');
+      act.innerHTML=c.left&&!resum
+        ?btn('neon','code',ic('unlock',13,2.4)+' معي كود')+go('ghost',ic('book',13,2.6)+' اقرأ')+btn('ghost','close','إغلاق')
+        :go('neon',ic(resum?'play':'book',13,2.6)+(resum?' كمّل الامتحان':(c.cta||' اقرأ الإصحاح')))+btn('ghost','close','إغلاق');
     }else if(s==='current'||s==='open'){
       msg.style.display='block'; msg.textContent=c.msg||popMessage(s,{curNum:D.cur>=0?chs[D.cur].num:0});
       act.innerHTML=go('neon',ic('play',13,2.4)+(resum?' كمّل الامتحان':(c.cta||' ابدأ الإصحاح')))+btn('ghost','close','لاحقًا');
@@ -258,7 +262,7 @@ export function init(root,opts){
   // ----- نافذة الكود -----
   const modal=$('codeModal'), inp=$('codeInput'), err=$('codeError'), okBtn=$('codeConfirm'); let codeIdx=null, busy=false;
   function openCodeModal(i){
-    codeIdx=i; busy=false; $('codeTitle').textContent='فتح الإصحاح '+ar(chs[i].num);
+    codeIdx=i; busy=false; $('codeTitle').textContent=chs[i].final?'فتح الامتحان الشامل':'فتح الإصحاح '+ar(chs[i].num);
     inp.value=''; err.textContent=''; inp.classList.remove('cm-shake'); okBtn.disabled=false; okBtn.textContent='فتح بالكود';
     modal.classList.add('cm-open'); modal.setAttribute('aria-hidden','false'); later(()=>inp.focus(),260);
   }
@@ -284,7 +288,7 @@ export function init(root,opts){
     if(!root.isConnected) return;
     const oldLen=trailLenFor(progIdx(chs,D.cur)); if(Array.isArray(fresh)&&fresh.length===chs.length) chs=fresh; D=derive(chs); paint();
     const i=chs.findIndex((c)=>idOf(c)===num), nw=trailLenFor(progIdx(chs,D.cur)); centerActive('smooth'); animateTrail(oldLen,nw,Math.min(2400,Math.max(900,Math.abs(nw-oldLen)*4)));
-    later(()=>{ if(i>=0) burstAtNode(i,true); haptic(22); toast('🔓 فُتح الإصحاح '+ar(i>=0?chs[i].num:num),'unlock'); },reduced()?0:Math.min(1200,Math.max(400,Math.abs(nw-oldLen)*3)));
+    later(()=>{ if(i>=0) burstAtNode(i,true); haptic(22); toast('🔓 فُتح '+(i>=0&&chs[i].final?'الامتحان الشامل':'الإصحاح '+ar(i>=0?chs[i].num:num)),'unlock'); },reduced()?0:Math.min(1200,Math.max(400,Math.abs(nw-oldLen)*3)));
     later(()=>{ if(opts.open) opts.open(num); },reduced()?600:2200);
   }
 

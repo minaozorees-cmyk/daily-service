@@ -1,6 +1,8 @@
 'use strict';
 /* الخدمة اليومية v3.0 — مسابقة على نمط مسابقة بطرس: إصحاح بإصحاح (قراءة ← أسئلة ← حفظ) ثم الامتحان الشامل.
    • محاولة واحدة لكل إصحاح. v3.0.12: الخروج أثناء الحل يُحسب له ما أجاب عليه (غير المجاب = صفر) ويُسجَّل نتيجة نهائية للإصحاح ويُفتح الإصحاح التالي تلقائيًا؛ وإعادة الإصحاح الذي خرج منه بكود من المسؤول فقط (إصحاح واحد، مرة واحدة).
+   • v3.0.19: علامة left محلية للإصحاح الذي خرج منه الخادم ← زر «معي كود» على صفه/عقدته؛ ومراجعة الإصحاحات (مرتبة) قبل تأكيد رفع المسابقة.
+   • v3.0.20: عند خطأ في ملفات الرفع (JSON/حجم/دمج) تُعرض الملفات في محرّر قابل للتعديل مع موضع الخطأ وإعادة الفحص.
    • الدرجة تُحسب في السيرفر (quiz_finish). الخادم لا يرى درجة ولا تصحيحًا إلا بعد الامتحان الشامل.
    • أوفلاين: البدء/التسليم/الإلغاء تدخل طابور Sync وتُرفع فور عودة الاتصال.
    سكربت عادي يُحمَّل بعد admin21.js ويستبدل دوال app.js بالإسناد على window (نفس أسلوب admin15/16). */
@@ -58,6 +60,7 @@
     if (i.state !== 'open' && !codeFor(step)) return 'closed';
     return 'ready';
   }
+  const isLeft = (step) => !!((ls().steps[step] || {}).left);   /* v3.0.19: خرج من الإصحاح (على هذا الجهاز) */
   const finalDone = () => !!srv().final_done || !!(ls().steps[0] || {}).done;
 
   function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
@@ -76,7 +79,7 @@
     if (!CM && !cmFail) loadCM();
     const rows = [];
     if (!useMap) for (let s = 1; s <= n; s++) rows.push(row(c, s));
-    rows.push(row(c, 0));
+    if (!useMap) rows.push(row(c, 0));   /* v3.0.23: الشامل داخل الخريطة؛ الصف القديم احتياطي فقط */
     const books = c.chapters.map((x) => x.book).filter((b, i, a) => b && a.indexOf(b) === i);
     const mapBox = useMap ? `<div class="q3-map">${CM.html(books.length === 1 ? books[0] : 'المسابقة', { verses: false, back: false })}</div>` : '';
     const pend = Sync.pendingCount() > 0;
@@ -123,7 +126,7 @@
   }
   /* حالة الصف في q3 ← شكل بيانات الخريطة. step = رقم الخطوة (1..n)؛ num = رقم الإصحاح للعرض */
   function mapData(c) {
-    return c.chapters.map((ch, i) => {
+    const arr = c.chapters.map((ch, i) => {
       const s = i + 1, st = status(c, s), k = codeFor(s), sr = (srv().steps || []).find((x) => x.step === s) || {};
       const o = { step: s, num: ch.num, sub: ch.book || '', lock: null, first: null, attempts: (sr.attempts | 0) || (info(s).used ? 1 : 0) };
       const typed = !!codeTyped[s] && !info(s).done;
@@ -131,6 +134,7 @@
         o.first = { score: null, total: null };
         o.msg = st === 'retry' ? 'تم الحفظ — فُتحت لك محاولة إعادة. تُحتسب آخر نتيجة مكتملة.' : 'تم الحفظ. تظهر الدرجة بعد الامتحان الشامل.';
         if (st === 'retry') o.cta = ' 🔁 إعادة بالكود';
+        else if (isLeft(s)) { o.left = true; o.msg = 'خرجت من هذا الإصحاح فحُسبت درجتك على ما أجبت عليه. لإعادته اضغط «معي كود» واكتب الكود من المسؤول.'; }
       } else if (st === 'locked') {
         o.lock = { why: 'before' }; o.noCode = true; o.msg = 'يُفتح بعد إنهاء الإصحاح السابق.';
       } else if (st === 'needcode' || st === 'closed') {
@@ -141,6 +145,29 @@
       }
       return o;
     });
+    arr.push(finalNode(c));
+    return arr;
+  }
+  /* v3.0.23: الامتحان الشامل كعقدة أخيرة في الخريطة (step: 0). نفس منطق status(c, 0) المستعمل في الصف القديم */
+  function finalNode(c) {
+    const st = status(c, 0), k = codeFor(0), sr = (srv().steps || []).find((x) => x.step === 0) || {};
+    const typed = !!codeTyped[0] && !info(0).done;
+    const o = { step: 0, num: 0, final: true, sub: 'أسئلة من كل الإصحاحات', lock: null, first: null, attempts: (sr.attempts | 0) || (info(0).used ? 1 : 0) };
+    if (st === 'done' || st === 'retry') {
+      o.first = { score: null, total: null }; o.msg = 'تم الحفظ.';
+      if (st === 'retry') o.cta = ' 🔁 إعادة بالكود';
+    } else if (st === 'locked') {
+      o.lock = { why: 'before' }; o.noCode = true; o.msg = 'يُفتح بعد إنهاء كل الإصحاحات.';
+    } else if (st === 'needcode' || st === 'closed') {
+      if (k || typed) { o.cta = ' 🔑 كود جاهز — ابدأ'; o.msg = 'معك كود فتح للامتحان الشامل. محاولة واحدة.'; }
+      else if (st === 'needcode') { o.lock = { why: 'after' }; o.msg = 'استُهلكت المحاولة. يلزم كود من المسؤول.'; }
+      else if (sr.state === 'upcoming') { o.lock = { why: 'before' }; o.msg = 'لم يُفتح الامتحان الشامل بعد. إن كان معك كود من المسؤول فاستخدمه.'; }
+      else { o.lock = { why: 'after' }; o.msg = 'أُغلق الامتحان الشامل. إن كان معك كود من المسؤول فاستخدمه.'; }
+    } else {
+      o.cta = ' ابدأ الامتحان الشامل';
+      o.msg = ar(Math.min(FINAL_N, pool(c, 0).length)) + ' سؤالًا من كل الإصحاحات. محاولة واحدة.';
+    }
+    return o;
   }
   async function mapVerify(step, code) {
     const v = String(code || '').toUpperCase().replace(/[^0-9A-F]/g, '');
@@ -158,7 +185,7 @@
     box.dataset.cmBound = '1';
     box.addEventListener('click', (e) => {
       const b = e.target.closest('[data-a="chap"]'); if (!b) return;
-      const c = contest(), s = parseInt(b.dataset.n, 10); if (!c || Q || !(s >= 1 && s <= c.chapters.length)) return;
+      const c = contest(), s = parseInt(b.dataset.n, 10); if (!c || Q || !(s >= 0 && s <= c.chapters.length)) return;
       const k = codeFor(s), code = status(c, s) === 'ready' ? null : (k ? k.code : (codeTyped[s] || null));
       delete codeTyped[s]; window.q3Go(s, code);
     });
@@ -172,9 +199,9 @@
   /* v3.0.1: بعد الشامل تبقى الإعادة بالكود ممكنة: نعرض الإصحاحات التي لها كود جاهز + خانة الكود */
   function retryBlock(c) {
     const rows = [];
-    for (let s = 1; s <= c.chapters.length; s++) if (info(s).done && codeFor(s)) rows.push(row(c, s));
-    if (info(0).done && codeFor(0)) rows.push(row(c, 0));
-    return (rows.length ? '<div class="q3-rules">فتح لك المسؤول محاولة إعادة. تُحتسب آخر نتيجة مكتملة.</div>' + rows.join('') : '') + manualHtml();
+    for (let s = 1; s <= c.chapters.length; s++) if (info(s).done && (codeFor(s) || isLeft(s))) rows.push(row(c, s));
+    if (info(0).done && (codeFor(0) || isLeft(0))) rows.push(row(c, 0));
+    return (rows.length ? '<div class="q3-rules">الإصحاحات التي خرجت منها أو فتح لك المسؤول إعادتها. تُحتسب آخر نتيجة مكتملة.</div>' + rows.join('') : '') + manualHtml();
   }
   function row(c, s) {
     const st = status(c, s), k = codeFor(s), label = esc(stepLabel(c, s));
@@ -184,6 +211,7 @@
       retry: ['✅', 'تم الحفظ — فُتحت لك محاولة جديدة', `<button class="btn btn-gold btn-sm" onclick="q3Go(${s}, ${jsArg(k ? k.code : '')})">🔁 إعادة بالكود</button>`]
     };
     let btn = map[st][2];
+    if (st === 'done' && isLeft(s)) { map.done = ['✅', 'تم الحفظ — خرجت منه. لإعادته يلزم كود من المسؤول', '']; btn = `<button class="btn btn-gold btn-sm" onclick="q3AskCode(${s})">🔑 معي كود</button>`; }
     if ((st === 'needcode' || st === 'closed') && k) btn = `<button class="btn btn-gold btn-sm" onclick="q3Go(${s}, ${jsArg(k.code)})">🔑 كود جاهز — ابدأ</button>`;
     return `<div class="q3-row q3-${st}"><span class="q3-ic">${map[st][0]}</span><div class="q3-info"><strong>${label}</strong><small>${map[st][1]}</small></div>${btn}</div>`;
   }
@@ -198,6 +226,14 @@
     if (!d.ok) return showToast(d.reason === 'USED' ? ERR.CODE_USED : d.reason === 'EXPIRED' ? ERR.CODE_EXPIRED : ERR.BAD_CODE, 'error');
     if (d.step == null) return showToast('هذا كود قديم لا يخص إصحاحًا محددًا.', 'error');
     window.q3Go(d.step, v);
+  };
+
+  /* v3.0.19: «معي كود» على صف إصحاح خرج منه الخادم (وضع القائمة): يفتح خانة الكود المشتركة */
+  window.q3AskCode = function (step) {
+    const d = document.querySelector('.q3-manual'); if (!d) return;
+    d.open = true; const i = $('q3-code'); i && i.focus();
+    const c = contest(); showToast('اكتب كود ' + (c && step ? stepLabel(c, step) : 'الإصحاح'), 'info');
+    d.scrollIntoView && d.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
 
   /* ---------- القراءة ---------- */
@@ -346,7 +382,7 @@
     const done = Q, s = ls();
     try { if (window.Support) Support.note('quiz-finish', 'step ' + done.step); } catch (e) { /* */ }
     Sync.quizOp({ t: 'qdone', attempt: done.id, step: done.step, picked: done.qs.map((q) => q.id), answers: done.answers, secs: Math.round((Date.now() - done.t0) / 1000) });
-    s.steps[done.step] = Object.assign({}, s.steps[done.step], { done: true, used: true }); s.active = null; lsSave(s);
+    s.steps[done.step] = Object.assign({}, s.steps[done.step], { done: true, used: true, left: false }); s.active = null; lsSave(s);
     Q = null; view = 'saved'; setStore(REV, null);   // v3.0.1: نتيجة محفوظة قد تتغيّر بإعادة بعد الشامل
     const c = contest(), box = el(), isFinal = done.step === 0;
     box.innerHTML = `<div class="q3-saved"><div class="q3-saved-ic">✅</div><h3>تم حفظ إجاباتك</h3>
@@ -374,7 +410,7 @@
     }
     const secs = Q ? Math.round((Date.now() - Q.t0) / 1000) : Math.max(0, Math.round((Date.now() - (a.ts || Date.now())) / 1000));
     Sync.quizOp({ t: 'qdone', attempt: a.id, step: a.step, picked: picked, answers: answers, secs: secs });
-    s.active = null; s.steps[a.step] = Object.assign({}, s.steps[a.step], { done: true, used: true }); lsSave(s);
+    s.active = null; s.steps[a.step] = Object.assign({}, s.steps[a.step], { done: true, used: true, left: true }); lsSave(s);
     setStore(REV, null);
     leftStep = a.step;
     Q = null; view = 'home';
@@ -773,9 +809,18 @@
     Object.keys(q).forEach((k) => q[k] === undefined && delete q[k]);
     return q;
   }
+  /* v3.0.19: ترتيب الإصحاحات تلقائيًا (السفر بترتيب ظهوره ثم رقم الإصحاح) وإعادة ترقيم معرّفات الأسئلة */
+  function orderChapters(o) {
+    const key = (c) => String(c.bookId || c.book || ''), bk = [];
+    o.chapters.forEach((c) => { if (bk.indexOf(key(c)) < 0) bk.push(key(c)); });
+    o.chapters = o.chapters.map((c, i) => ({ c: c, i: i }))
+      .sort((a, b) => (bk.indexOf(key(a.c)) - bk.indexOf(key(b.c))) || ((parseInt(a.c.num, 10) || 0) - (parseInt(b.c.num, 10) || 0)) || (a.i - b.i)).map((x) => x.c);
+    o.chapters.forEach((c, i) => (c.qs || []).forEach((q, k) => { q.id = 'c' + (i + 1) + 'q' + (k + 1); }));
+    return o;
+  }
   function normalize(src) {
     const errs = [], warns = [];
-    if (src && src.v === 3) return { data: src, errs: [], warns: [], sum: summary(src) };
+    if (src && src.v === 3) { if (Array.isArray(src.chapters)) orderChapters(src); return { data: src, errs: [], warns: [], sum: summary(src) }; }
     if (!src || !Array.isArray(src.books)) return { data: null, errs: ['الصيغة غير معروفة: المتوقع ملف مسابقة بطرس (books) أو v3'], warns: [], sum: '' };
     const lib = (Sync.books() || []), out = { v: 3, title: String(src.title || ''), timing: { q: DEF_Q, tl: DEF_TL }, chapters: [], final: [] };
     if (src.timing) { const q = parseInt(src.timing.q != null ? src.timing.q : src.timing.mc, 10), t = parseInt(src.timing.tl != null ? src.timing.tl : src.timing.timeline, 10); if (!isNaN(q)) out.timing.q = q; if (!isNaN(t)) out.timing.tl = t; }
@@ -791,6 +836,7 @@
       (b.finalQuestions || []).forEach((raw, k) => { const q = normQ(raw, 'f' + (out.final.length + 1), errs, b.name + ' شامل ' + (k + 1)); if (q) out.final.push(q); });
     });
     if (!out.chapters.length) errs.push('لا توجد إصحاحات');
+    else orderChapters(out);
     if (out.final.length < FINAL_N) warns.push('بنك الامتحان الشامل ' + out.final.length + ' سؤالًا (الأفضل ' + FINAL_N + ' فأكثر بـ10 سهل/10 متوسط/10 صعب).');
     const ids = {}; out.chapters.forEach((c) => c.qs.forEach((q) => { ids[q.id] = 1; })); out.final.forEach((q) => { ids[q.id] = 1; });
     const n = out.chapters.reduce((t, c) => t + c.qs.length, 0) + out.final.length;
@@ -799,6 +845,34 @@
     return { data: errs.length ? null : out, errs: errs, warns: warns, sum: summary(out) };
   }
   const summary = (d) => d && d.chapters ? `${ar(d.chapters.length)} إصحاحًا — ${d.chapters.map((c) => ar(c.qs.length)).join('، ')} سؤالًا — الشامل ${ar((d.final || []).length)} سؤالًا` : '';
+  /* v3.0.19: مراجعة قبل تأكيد الرفع: مواعيد المسابقة + كل إصحاح بالترتيب (الأسئلة، أسئلة الترتيب، تنبيهات) */
+  function reviewHtml(d) {
+    const sched = getStore(STORE.schedule, DEFAULT_SCHEDULE) || DEFAULT_SCHEDULE, t = schedTimes(sched);
+    const fmt = (x) => (x ? esc(String(x).replace('T', ' ')) : 'غير محدد'), tq = d.timing || {};
+    const warn = [], byBook = {};
+    d.chapters.forEach((c) => { const k = c.book || ''; (byBook[k] = byBook[k] || []).push(parseInt(c.num, 10)); });
+    Object.keys(byBook).forEach((b) => {
+      const ns = byBook[b].filter((n) => !isNaN(n)), lo = Math.min.apply(null, ns), hi = Math.max.apply(null, ns), miss = [];
+      for (let n = lo; n <= hi; n++) if (ns.indexOf(n) < 0) miss.push(n);
+      if (miss.length) warn.push('«' + b + '»: ينقص إصحاح ' + miss.join('، '));
+    });
+    const rows = d.chapters.map((c, i) => {
+      const qs = c.qs || [], tl = qs.filter((q) => q.isTimeline).length, low = qs.length < PER_CH, nb = !c.bookId;
+      const notes = [low ? 'أقل من ' + PER_CH : '', nb ? 'السفر غير مسجّل (بلا نص قراءة)' : ''].filter(Boolean).join(' · ');
+      return `<div class="q3-rv-row${low || nb ? ' q3-rv-warn' : ''}"><b>${ar(i + 1)}</b><div><strong>${esc(c.book)} — إصحاح ${ar(c.num)}</strong>` +
+        `<small>${ar(qs.length)} سؤالًا${tl ? ' · ' + ar(tl) + ' ترتيب' : ''}${notes ? ' · ⚠️ ' + esc(notes) : ''}</small></div></div>`;
+    }).join('');
+    return `<div class="q3-rv"><div class="q3-rv-h">مراجعة قبل الرفع</div>` +
+      `<small class="q3-rv-meta">البداية: ${fmt(t.starts)} · النهاية: ${fmt(t.ends)}<br>الوقت لكل سؤال: ${tq.q > 0 ? ar(tq.q) + ' ث' : 'بلا وقت'} · سؤال الترتيب: ${tq.tl > 0 ? ar(tq.tl) + ' ث' : 'بلا وقت'}</small>` +
+      `<div class="q3-rv-note">الترتيب أدناه هو ترتيب الظهور للخادم (السفر ثم رقم الإصحاح). غيّره بإعادة اختيار الملفات.</div>${rows}` +
+      `<div class="q3-rv-row"><b>★</b><div><strong>الامتحان الشامل</strong><small>${ar((d.final || []).length)} سؤالًا${(d.final || []).length < FINAL_N ? ' · ⚠️ أقل من ' + FINAL_N : ''}</small></div></div>` +
+      (warn.length ? `<div class="sched-note">${warn.map(esc).join('<br>')}</div>` : '') +
+      `<button class="btn btn-outline btn-sm" onclick="q3CancelStaged()">إلغاء</button></div>`;
+  }
+  window.q3CancelStaged = function () {
+    staged = null; rawFiles = []; const box = $('owner-contest-preview'); if (box) box.innerHTML = '';
+    $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'فحص ورفع الأسئلة');
+  };
   window.saveOwnerContestJson = async function () {
     if (!requireRole('owner')) return;
     const box = $('owner-contest-preview');
@@ -812,10 +886,16 @@
       if (box) box.innerHTML = '';
       resetQuizState(); showToast('تم رفع المسابقة'); adminAfterSave(); return;
     }
-    let parsed; try { parsed = JSON.parse($('owner-contest-json').value); } catch (e) { return showToast('خطأ في صيغة JSON', 'error'); }
+    let parsed; const raw = $('owner-contest-json').value;
+    try { parsed = JSON.parse(raw); } catch (e) {
+      const je = jsonErr(raw, e), ta = $('owner-contest-json');
+      if (box) box.innerHTML = `<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>${esc(je.msg)}<br>عدّل النص في المربع أعلاه ثم اضغط «فحص ورفع الأسئلة».</div>`;
+      if (ta && je.pos >= 0) { ta.focus(); try { ta.setSelectionRange(je.pos, Math.min(raw.length, je.pos + 1)); } catch (x) { /* */ } ta.scrollTop = Math.max(0, (je.line - 3)) * 18; }
+      return showToast('خطأ في صيغة JSON', 'error');
+    }
     const n = normalize(parsed);
-    if (box) box.innerHTML = (n.errs.length ? `<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>${n.errs.slice(0, 12).map(esc).join('<br>')}</div>` : '') +
-      (n.warns.length ? `<div class="sched-note"><strong>تنبيهات:</strong><br>${n.warns.slice(0, 12).map(esc).join('<br>')}</div>` : '') + (n.sum ? `<p class="json-hint">${esc(n.sum)}</p>` : '');
+    if (box) box.innerHTML = (n.errs.length ? `<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>${n.errs.slice(0, 12).map(esc).join('<br>')}<br><small>عدّل النص في المربع أعلاه ثم اضغط «فحص ورفع الأسئلة».</small></div>` : '') +
+      (n.warns.length ? `<div class="sched-note"><strong>تنبيهات:</strong><br>${n.warns.slice(0, 12).map(esc).join('<br>')}</div>` : '') + (n.data ? reviewHtml(n.data) : (n.sum ? `<p class="json-hint">${esc(n.sum)}</p>` : ''));
     if (!n.data) return;
     staged = n.data;
     $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'تأكيد الرفع (سيستبدل المسابقة الحالية)');
@@ -850,26 +930,66 @@
     }
     return errs.length ? { errs: errs } : { data: out, errs: [] };
   }
-  window.ownerContestFilesPicked = async function (inp) {
-    if (!requireRole('owner')) { inp.value = ''; return; }
-    const files = Array.from(inp.files || []), box = $('owner-contest-preview'), fail = (m) => { if (box) box.innerHTML = '<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>' + m.map(esc).join('<br>') + '</div>'; };
-    inp.value = '';
-    if (!files.length) return;
+  /* v3.0.20: عند أي خطأ في الملفات (صيغة JSON، حجم، دمج/تكرار) تُحفظ الملفات في محرّر قابل للتعديل بدل رميها */
+  let rawFiles = [];
+  function jsonErr(text, e) {
+    const msg = String((e && e.message) || ''); let pos = -1, m;
+    if ((m = /position (\d+)/.exec(msg))) pos = parseInt(m[1], 10);
+    else if ((m = /line (\d+) column (\d+)/.exec(msg))) { const L = text.split('\n'); pos = 0; for (let i = 0; i < parseInt(m[1], 10) - 1 && i < L.length; i++) pos += L[i].length + 1; pos += Math.max(0, parseInt(m[2], 10) - 1); }
+    if (pos < 0 || pos > text.length) return { msg: 'خطأ في صيغة JSON', pos: -1, line: 0 };
+    const before = text.slice(0, pos).split('\n'), line = before.length, col = before[before.length - 1].length + 1;
+    return { msg: 'خطأ في صيغة JSON — السطر ' + ar(line) + ' العمود ' + ar(col), pos: pos, line: line };
+  }
+  function syncRaw() { rawFiles.forEach((f, i) => { const t = $('q3-rf-' + i); if (t) f.text = t.value; }); }
+  function renderFileEditor(errs) {
+    const box = $('owner-contest-preview'); if (!box) return;
+    const files = rawFiles.map((f, i) => {
+      const bad = !!f.err;
+      return `<details class="q3-fe"${bad ? ' open' : ''}><summary>${bad ? '❌' : '✅'} ${esc(f.name)}${bad ? ' — ' + esc(f.err.msg) : ''}</summary>` +
+        (f.big ? '' : `<textarea id="q3-rf-${i}" class="form-control" style="font-family:monospace;direction:ltr;text-align:left;min-height:170px;margin-top:6px;">${esc(f.text)}</textarea>`) +
+        `<div class="q3-fe-btns">${bad && f.err.pos >= 0 ? `<button class="btn btn-outline btn-sm" onclick="q3FileErrPos(${i})">📍 موضع الخطأ</button>` : ''}<button class="btn btn-outline btn-sm" onclick="q3DropFile(${i})">🗑️ إزالة الملف</button></div></details>`;
+    }).join('');
+    box.innerHTML = `<div class="sched-note" style="border-color:var(--danger)"><strong>أخطاء (لن يُرفع):</strong><br>${errs.slice(0, 12).map(esc).join('<br>')}</div>` +
+      `<div class="q3-rv"><div class="q3-rv-h">تعديل الملفات</div><div class="q3-rv-note">عدّل النص في المربع ثم «إعادة الفحص». الملفات السليمة تبقى هنا ولا يُرفع شيء قبل نجاح الفحص.</div>${files}` +
+      `<button class="btn btn-gold btn-sm" onclick="q3RecheckFiles()">🔄 تطبيق التعديل وإعادة الفحص</button> <button class="btn btn-outline btn-sm" onclick="q3CancelStaged()">إلغاء</button></div>`;
+  }
+  function processFiles() {
+    const box = $('owner-contest-preview'), list = [], errs = [];
     staged = null; $('owner-contest-btn') && ($('owner-contest-btn').textContent = 'فحص ورفع الأسئلة');
-    const list = [], errs = [];
-    for (const f of files) {
-      if (f.size > 1500000) { errs.push('الملف «' + f.name + '» أكبر من الحد (1.5 ميجا)'); continue; }
-      try { list.push({ name: f.name, json: JSON.parse(await f.text()) }); } catch (e) { errs.push('الملف «' + f.name + '»: خطأ في صيغة JSON'); }
-    }
-    if (errs.length) return fail(errs);
-    const m = mergeFiles(list);
-    if (!m.data) return fail(m.errs);
-    $('owner-contest-json').value = JSON.stringify(m.data);
+    rawFiles.forEach((f) => {
+      f.err = null;
+      if (f.big) { f.err = { msg: 'أكبر من الحد (1.5 ميجا)', pos: -1 }; errs.push('الملف «' + f.name + '» أكبر من الحد (1.5 ميجا)'); return; }
+      try { list.push({ name: f.name, json: JSON.parse(f.text) }); } catch (e) { f.err = jsonErr(f.text, e); errs.push('الملف «' + f.name + '»: ' + f.err.msg); }
+    });
+    let m = null;
+    if (!errs.length) { m = mergeFiles(list); if (!m.data) m.errs.forEach((x) => errs.push(x)); }
+    if (errs.length) return renderFileEditor(errs);
+    if (box) box.innerHTML = '';
+    $('owner-contest-json').value = JSON.stringify(m.data, null, 1);
     showToast('تم دمج ' + ar(list.length) + ' ملف');
     window.saveOwnerContestJson();
+  }
+  window.q3RecheckFiles = function () { if (!requireRole('owner')) return; syncRaw(); processFiles(); };
+  window.q3DropFile = function (i) { syncRaw(); rawFiles.splice(i, 1); if (!rawFiles.length) return window.q3CancelStaged(); processFiles(); };
+  window.q3FileErrPos = function (i) {
+    const f = rawFiles[i], t = $('q3-rf-' + i); if (!f || !f.err || !t) return;
+    t.focus(); try { t.setSelectionRange(f.err.pos, Math.min(t.value.length, f.err.pos + 1)); } catch (e) { /* */ }
+    t.scrollTop = Math.max(0, (f.err.line - 3)) * 18;
+  };
+  window.ownerContestFilesPicked = async function (inp) {
+    if (!requireRole('owner')) { inp.value = ''; return; }
+    const files = Array.from(inp.files || []);
+    inp.value = '';
+    if (!files.length) return;
+    rawFiles = [];
+    for (const f of files) {
+      if (f.size > 1500000) rawFiles.push({ name: f.name, text: '', big: true });
+      else { try { rawFiles.push({ name: f.name, text: await f.text() }); } catch (e) { rawFiles.push({ name: f.name, text: '', big: true }); } }
+    }
+    processFiles();
   };
 
-  window.Quiz3Tools = { normalize: normalize, mergeFiles: mergeFiles, pickChapter: pickChapter, pickFinal: pickFinal };   // للاختبار اليدوي من الـconsole
+  window.Quiz3Tools = { normalize: normalize, orderChapters: orderChapters, reviewHtml: reviewHtml, mergeFiles: mergeFiles, pickChapter: pickChapter, pickFinal: pickFinal };   // للاختبار اليدوي من الـconsole
 
   /* ---------- تشغيل ---------- */
   document.addEventListener('DOMContentLoaded', () => { setTimeout(recoverActive, 1500); });

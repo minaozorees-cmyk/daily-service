@@ -17,10 +17,14 @@ export function derive(chs){
 }
 export const stateOf=(chs,i,cur)=>{ const k=kindOf(chs[i]); return k==='open'&&i===cur?'current':k; };
 export const doneIdx=(chs)=>chs.map((c,i)=>kindOf(c)==='done'?i:-1).filter((i)=>i>=0);
-export const counts=(chs)=>({done:doneIdx(chs).length,open:chs.filter((c)=>kindOf(c)==='open').length,N:chs.length});
+// v3.0.23: عقدة الامتحان الشامل (final:true) تُرسم في المسار لكنها لا تدخل في عدّاد «الإصحاحات»
+const reals=(chs)=>chs.filter((c)=>!c.final);
+export const counts=(chs)=>{ const r=reals(chs); return {done:r.filter((c)=>kindOf(c)==='done').length,open:r.filter((c)=>kindOf(c)==='open').length,N:r.length}; };
 // نقطة التقدّم اللي المسار بيوصلها: الحالي، وإلا آخر محلول، وإلا -1
 export function progIdx(chs,cur){ if(cur>=0) return cur; const d=doneIdx(chs); return d.length?d[d.length-1]:-1; }
 export const hueFor=(i,N)=>(i*360/Math.max(1,N)+200)%360;
+// v3.0.23: لون العقدة (الشامل ذهبي ثابت)
+export const hueAt=(chs,i)=>chs[i]&&chs[i].final?44:hueFor(i,chs.length);
 export const trailFrac=(i,N)=>(i<0||N<2)?0:(i+0.5)/N;
 // لقطة حالة السفر (للمقارنة بعد الرجوع من النتيجة: لو اتحلّ إصحاح جديد المسار يتحرّك)
 export const snap=(chs)=>{ const {cur}=derive(chs); return {done:chs.filter((c)=>kindOf(c)==='done').map((c)=>(c.step!=null?c.step:c.num)).sort((a,b)=>a-b),prog:progIdx(chs,cur)}; };
@@ -35,11 +39,13 @@ export const STATE_AR={done:'محلول',current:'جاري',open:'مفتوح',lo
 // نصوص الشريط السفلي (بدون أيقونات/تواريخ؛ التاريخ بيتمرّر جاهز)
 export function footerText(chs,{cur,hint},fmtShort){
   const c=counts(chs);
+  if(cur>=0&&chs[cur].final) return {mode:'go',loc:'الامتحان الشامل',cta:'ابدأ الامتحان الشامل'};
+  if(cur<0&&c.N>0&&c.done===c.N&&chs.some((x)=>x.final&&kindOf(x)!=='done')) return {mode:'none',loc:'الامتحان الشامل',cta:'الامتحان الشامل مقفول الآن · اضغط عليه لو معك كود'};
   if(cur>=0){ const num=ar(chs[cur].num); return {mode:'go',loc:'الإصحاح '+num,cta:(c.done>0?'أكمل رحلتك':'ابدأ رحلتك')+' · الإصحاح '+num}; }
   if(c.N>0&&c.done===c.N) return {mode:'all',loc:'خلّصت كل الإصحاحات',cta:'أكملت السفر كله 🏆'};
   return {mode:'none',loc:'مفيش إصحاح مفتوح دلوقتي',cta:hint>=0?'أقرب فتح: إصحاح '+ar(chs[hint].num)+' · '+fmtShort(chs[hint].lock.at):'مفيش إصحاح مفتوح دلوقتي'};
 }
-export const hudText=(chs)=>{ const c=counts(chs); return {main:ar(c.done)+' محلول',open:c.open>0?ar(c.open)+' مفتوح':'',sub:ar(c.N)+' إصحاح · '+ar(c.done)+' محلول'}; };
+export const hudText=(chs)=>{ const c=counts(chs); return {main:ar(c.done)+' محلول',open:c.open>0?ar(c.open)+' مفتوح':'',sub:ar(c.N)+' إصحاح'+(chs.some((x)=>x.final)?' + الامتحان الشامل':'')+' · '+ar(c.done)+' محلول'}; };
 // رسالة الـpopover حسب الحالة
 export function popMessage(s,{curNum,at,fmt}){
   if(s==='current') return 'الإصحاح ده مفتوح. ابدأ بالقراءة وبعدها الأسئلة.';
