@@ -1,6 +1,6 @@
 'use strict';
 /* الخدمة اليومية v3.0 — مسابقة على نمط مسابقة بطرس: إصحاح بإصحاح (قراءة ← أسئلة ← حفظ) ثم الامتحان الشامل.
-   • محاولة واحدة لكل إصحاح. الخروج أثناء الحل يُلغي المحاولة. أي محاولة إضافية تحتاج كود فتح من المسؤول (إصحاح واحد، مرة واحدة).
+   • محاولة واحدة لكل إصحاح. v3.0.12: الخروج أثناء الحل يُحسب له ما أجاب عليه (غير المجاب = صفر) ويُسجَّل نتيجة نهائية للإصحاح ويُفتح الإصحاح التالي تلقائيًا؛ وإعادة الإصحاح الذي خرج منه بكود من المسؤول فقط (إصحاح واحد، مرة واحدة).
    • الدرجة تُحسب في السيرفر (quiz_finish). الخادم لا يرى درجة ولا تصحيحًا إلا بعد الامتحان الشامل.
    • أوفلاين: البدء/التسليم/الإلغاء تدخل طابور Sync وتُرفع فور عودة الاتصال.
    سكربت عادي يُحمَّل بعد admin21.js ويستبدل دوال app.js بالإسناد على window (نفس أسلوب admin15/16). */
@@ -85,7 +85,7 @@
         <div class="quiz-progress-bar"><div class="quiz-progress-fill" style="width:${Math.round((doneN / n) * 100)}%"></div></div></div>
       ${pend ? '<div class="sched-note">⏳ بعض إجاباتك محفوظة على جهازك وستُرسل فور عودة الاتصال.</div>' : ''}
       ${mapBox}
-      <div class="q3-rules">محاولة واحدة لكل إصحاح · الخروج من المسابقة أثناء الأسئلة (بالانتقال لتبويب آخر أو مغادرة التطبيق) يُلغي المحاولة · لن تظهر درجتك إلا بعد الامتحان الشامل.</div>
+      <div class="q3-rules">محاولة واحدة لكل إصحاح · لو خرجت من المسابقة أثناء الأسئلة (بالانتقال لتبويب آخر أو مغادرة التطبيق) تُحسب درجتك على ما أجبت عليه ويُغلق الإصحاح ويُفتح لك التالي · لن تظهر درجتك إلا بعد الامتحان الشامل.</div>
       ${rows.join('')}
       ${manualHtml()}`;
     if (useMap) {
@@ -271,7 +271,7 @@
       if (queued) Sync.quizOp({ t: 'qstart', cid: cid, step: step, attempt: id, code: code });
       const picked = (step === 0 ? pickFinal(pool(c, 0)) : pickChapter(pool(c, step))).map(prep);
       if (!picked.length) { showToast('لا توجد أسئلة في هذا الإصحاح.', 'error'); return; }
-      const s = ls(); s.steps[step] = Object.assign({}, s.steps[step], { used: true }); s.active = { id: id, step: step, ts: Date.now() }; lsSave(s);
+      const s = ls(); s.steps[step] = Object.assign({}, s.steps[step], { used: true }); s.active = { id: id, step: step, ts: Date.now(), picked: picked.map((q) => q.id), answers: {} }; lsSave(s);
       Q = { id: id, step: step, qs: picked, i: 0, answers: {}, t0: Date.now(), left: 0, locked: false };
       view = 'q'; pendingCode = null;
       drawQ();
@@ -307,7 +307,11 @@
       }, 250);
     }
   }
-  function record(val) { const q = Q.qs[Q.i]; if (val !== undefined) Q.answers[q.id] = val; }
+  function record(val) {
+    const q = Q.qs[Q.i]; if (val !== undefined) Q.answers[q.id] = val;
+    /* v3.0.12: نحفظ الإجابات أولًا بأول على الجهاز عشان لو الصفحة اتقفلت تتحسب الدرجة عند الرجوع */
+    const s = ls(); if (s.active && s.active.id === Q.id) { s.active.answers = Q.answers; lsSave(s); }
+  }
   function next() {
     stopTimer();
     if (Q.i + 1 < Q.qs.length) { Q.i++; drawQ(); } else finish();
@@ -352,24 +356,44 @@
     setTimeout(() => { const p = $('q3-sync'); if (p && view === 'saved') p.textContent = Sync.pendingCount() ? '⏳ ستُرسل للمسؤول فور توفر الاتصال.' : '📤 أُرسلت للمسؤول.'; }, 1500);
     setTimeout(() => { Sync.pull(); }, 800);
   }
+  /* v3.0.12: الخروج يُسلِّم المحاولة بما أُجيب عليه (غير المجاب = صفر) فتُحسب نتيجة نهائية للإصحاح ويُفتح التالي.
+     الإصحاح الذي خرج منه يبقى «مستهلَك» فلا يعود إلا بكود من المالك. (الدرجة يحسبها السيرفر في quiz_finish كالمعتاد) */
   function cancelActive(msg, silent) {
     stopTimer();
     const s = ls(), a = s.active;
     if (!a) { Q = null; return; }
-    Sync.quizOp({ t: 'qcancel', attempt: a.id });
-    s.active = null; s.steps[a.step] = Object.assign({}, s.steps[a.step], { used: true }); lsSave(s);
+    const picked = Q ? Q.qs.map((q) => q.id) : a.picked, answers = Q ? Q.answers : (a.answers || {});
+    if (!Array.isArray(picked) || !picked.length) {      /* محاولة قديمة بلا أسئلة محفوظة: نلغيها كما كان */
+      Sync.quizOp({ t: 'qcancel', attempt: a.id });
+      s.active = null; s.steps[a.step] = Object.assign({}, s.steps[a.step], { used: true }); lsSave(s);
+      Q = null; view = 'home'; if (silent && !msg) leftNotice = true;
+      if (!silent) { showToast(msg || LEFT_MSG, 'warning'); renderQuiz(); }
+      return;
+    }
+    const secs = Q ? Math.round((Date.now() - Q.t0) / 1000) : Math.max(0, Math.round((Date.now() - (a.ts || Date.now())) / 1000));
+    Sync.quizOp({ t: 'qdone', attempt: a.id, step: a.step, picked: picked, answers: answers, secs: secs });
+    s.active = null; s.steps[a.step] = Object.assign({}, s.steps[a.step], { done: true, used: true }); lsSave(s);
+    setStore(REV, null);
+    leftStep = a.step;
     Q = null; view = 'home';
     if (silent && !msg) leftNotice = true;
-    if (!silent) { showToast(msg || 'أُلغيت المحاولة لأنك غادرت الصفحة. يلزم كود من المسؤول للإعادة.', 'warning'); renderQuiz(); }
+    if (!silent) { showToast(msg || leftText(), 'warning'); renderQuiz(); }
+    setTimeout(() => { Sync.pull(); }, 800);
+  }
+  const LEFT_MSG = 'أُلغيت المحاولة لأنك غادرت الصفحة. يلزم كود من المسؤول للإعادة.';
+  let leftStep = null;
+  function leftText() {
+    return leftStep === 0 ? 'خرجت من الامتحان الشامل فتم حساب درجتك على ما أجبت عليه وانتهت المسابقة. لإعادته يلزم كود من المسؤول.'
+      : 'خرجت من الإصحاح فتم حساب درجتك على ما أجبت عليه وأُغلق، وفُتح لك الإصحاح التالي. لإعادة هذا الإصحاح يلزم كود من المسؤول.';
   }
   /* الخروج من التطبيق/التبويب أثناء الحل ← إلغاء (كما في مسابقة بطرس) */
-  document.addEventListener('visibilitychange', () => { if (document.hidden && Q) cancelActive(null, true); else if (!document.hidden && !Q) { if (leftNotice) { leftNotice = false; showToast('أُلغيت المحاولة لأنك غادرت الصفحة. يلزم كود من المسؤول للإعادة.', 'warning'); } renderQuiz(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && Q) cancelActive(null, true); else if (!document.hidden && !Q) { if (leftNotice) { leftNotice = false; showToast(leftText(), 'warning'); } renderQuiz(); } });
   /* الانتقال لتبويب آخر داخل التطبيق أثناء الحل ← إلغاء (بعد تأكيد حتى لا تُلغى بلمسة خاطئة) */
   const _switchTab = window.switchTab;
   window.switchTab = function (name) {
     if (Q && name !== 'contest') {
-      if (!window.confirm('الانتقال لتبويب آخر سيلغي محاولتك الحالية، ويلزم كود من المسؤول للإعادة. هل تريد الخروج؟')) return;
-      cancelActive('أُلغيت المحاولة لأنك غادرت المسابقة. يلزم كود من المسؤول للإعادة.');
+      if (!window.confirm('الانتقال لتبويب آخر يعني خروجك من الإصحاح: تُحسب درجتك على ما أجبت عليه ويُغلق الإصحاح ولا يعود إلا بكود من المسؤول، ويُفتح لك التالي. هل تريد الخروج؟')) return;
+      cancelActive(null, false);
     }
     return _switchTab.apply(this, arguments);
   };
@@ -377,7 +401,7 @@
   /* صفحة اتقفلت أثناء الحل: نلغي المحاولة المعلّقة عند أول تشغيل */
   function recoverActive() {
     const s = ls();
-    if (s.active && !Q) { cancelActive(null, true); setTimeout(() => showToast('أُلغيت محاولة سابقة لم تكتمل. يلزم كود من المسؤول للإعادة.', 'warning'), 600); }
+    if (s.active && !Q) { cancelActive(null, true); setTimeout(() => { showToast(leftText(), 'warning'); leftNotice = false; renderQuiz(); }, 600); }
   }
 
   /* ---------- بعد الامتحان الشامل: الدرجات والتصحيح ---------- */
@@ -419,7 +443,7 @@
   /* ---------- نقاط الدخول التي يستدعيها app.js ---------- */
   window.renderQuiz = function () { if (Q) return; if (view === 'read' && readStep != null) return; if (view === 'saved') return; if (view !== 'done') view = 'home'; renderHome(); };
   window.isQuizInProgress = function () { return !!Q; };
-  window.resetQuizState = function () { if (Q) cancelActive('أُلغيت المحاولة.', true); stopTimer(); if (view === 'q') view = 'home'; const rb = $('quiz-result-box'); if (rb) rb.style.display = 'none'; };
+  window.resetQuizState = function () { if (Q) cancelActive('خروج', true); stopTimer(); if (view === 'q') view = 'home'; const rb = $('quiz-result-box'); if (rb) rb.style.display = 'none'; };
 
   /* خطاف Sync: نتيجة عمليات البدء/التسليم/الإلغاء من الطابور */
   Sync.hook({
