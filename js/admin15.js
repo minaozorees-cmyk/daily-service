@@ -18,7 +18,7 @@
     { t: 'المحتوى', items: [['plan', 'الخطة'], ['bulk', 'التوزيع'], ['books', 'الأسفار']] },
     { t: 'المسابقات', items: [['schedule', 'المواعيد'], ['unlock', 'الأكواد'], ['live', 'النتائج']] },
     { t: 'الخدام', items: [['tracking', 'المتابعة'], ['accounts', 'الحسابات'], ['moderation', 'الإشراف'], ['activity', 'السجل']] },
-    { t: 'المالك', owner: true, items: [['json', 'رفع JSON'], ['backup', 'النسخة الاحتياطية']] }
+    { t: 'المالك', owner: true, items: [['json', 'رفع JSON'], ['backup', 'النسخة الاحتياطية'], ['support', 'الدعم']] }
   ];
   /* v1.6: أيقونات خطية inline (24px، stroke 1.9) بنفس أسلوب أيقونات الشريط السفلي */
   const ICONS = {
@@ -33,7 +33,8 @@
     activity: '<path d="M6 3.5h12v17H6z"/><path d="M9 8h6M9 12h6M9 16h3.5"/>',
     moderation: '<path d="M12 3.5 5 6.2V12c0 4 3 6.6 7 8.5 4-1.9 7-4.5 7-8.5V6.2L12 3.5Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
     json: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
-    backup: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>'
+    backup: '<path d="M5 4h11l3 3v13H5V4Z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>',
+    support: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.4"/><path d="M6 6l3.6 3.6M18 6l-3.6 3.6M6 18l3.6-3.6M18 18l-3.6-3.6"/>'
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ''}</svg>`;
   const folded = {};

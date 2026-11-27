@@ -344,6 +344,7 @@
   /* ---------- التسليم والإلغاء ---------- */
   function finish() {
     const done = Q, s = ls();
+    try { if (window.Support) Support.note('quiz-finish', 'step ' + done.step); } catch (e) { /* */ }
     Sync.quizOp({ t: 'qdone', attempt: done.id, step: done.step, picked: done.qs.map((q) => q.id), answers: done.answers, secs: Math.round((Date.now() - done.t0) / 1000) });
     s.steps[done.step] = Object.assign({}, s.steps[done.step], { done: true, used: true }); s.active = null; lsSave(s);
     Q = null; view = 'saved'; setStore(REV, null);   // v3.0.1: نتيجة محفوظة قد تتغيّر بإعادة بعد الشامل
@@ -362,6 +363,7 @@
     stopTimer();
     const s = ls(), a = s.active;
     if (!a) { Q = null; return; }
+    try { if (window.Support) Support.note('quiz-leave', 'step ' + a.step + (silent ? ' (خروج من التطبيق)' : ' (تبويب)')); } catch (e) { /* */ }
     const picked = Q ? Q.qs.map((q) => q.id) : a.picked, answers = Q ? Q.answers : (a.answers || {});
     if (!Array.isArray(picked) || !picked.length) {      /* محاولة قديمة بلا أسئلة محفوظة: نلغيها كما كان */
       Sync.quizOp({ t: 'qcancel', attempt: a.id });
