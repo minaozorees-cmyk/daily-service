@@ -434,9 +434,15 @@
   }
   function paintReview(c, d) {
     const pct = d.total_total ? Math.round((d.total_score / d.total_total) * 100) : 0;
-    el().innerHTML = `<div class="q3-final"><div class="q3-final-ic">🏆</div><h3>أنهيت المسابقة</h3>
-      <div class="q3-final-score" dir="ltr">${ar(d.total_score)} / ${ar(d.total_total)} · ${ar(pct)}%</div></div>
-      ${(d.steps || []).map((s) => `<details class="q3-step"><summary><span>${esc(s.title)}</span><b dir="ltr">${ar(s.score)} / ${ar(s.total)}</b></summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`).join('')}
+    const lvl = (p) => (p >= 80 ? 'hi' : p >= 50 ? 'mid' : 'lo');
+    const msg = pct >= 90 ? 'ممتاز! بارك الله فيك' : pct >= 70 ? 'أحسنت، استمر' : pct >= 50 ? 'جيد، وتقدر تتحسن' : 'شكرًا لمشاركتك';
+    el().innerHTML = `<div class="q3-final">
+        <img class="q3-final-img" src="img/trophy-celebrate.svg" alt="" />
+        <h3>أنهيت المسابقة</h3><p class="q3-final-msg">${msg}</p>
+        <div class="q3-ring q3-${lvl(pct)}" style="--p:${pct}"><div class="q3-ring-in"><b>${ar(pct)}%</b><small dir="ltr">${ar(d.total_score)} / ${ar(d.total_total)}</small></div></div>
+      </div>
+      <div class="q3-steps-h">تفاصيل كل جزء</div>
+      ${(d.steps || []).map((s) => { const sp = s.total ? Math.round((s.score / s.total) * 100) : 0; return `<details class="q3-step"><summary><span class="q3-step-t">${esc(s.title)}</span><b class="q3-step-s q3-${lvl(sp)}" dir="ltr">${ar(s.score)} / ${ar(s.total)}</b><i class="q3-step-bar"><u class="q3-${lvl(sp)}" style="width:${sp}%"></u></i></summary>${(s.items || []).map((it, i) => itemHtml(it, i + 1)).join('')}</details>`; }).join('')}
       ${retryBlock(c)}`;
   }
 
