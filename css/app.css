@@ -2448,3 +2448,29 @@
 
 /* v3.0.14: لا تترك مساحة فارغة تحت صورة المسابقة لو مفيش نص جدول */
 #contest-schedule-info:empty { display: none; }
+
+/* ===== v3.0.15: تصميم شاشة «أنهيت المسابقة» ===== */
+.q3-final { background: linear-gradient(180deg, var(--primary-soft) 0%, var(--card, #fff) 75%); border: 1.5px solid var(--border, #e5e7eb); border-radius: 22px; padding: 0 14px 22px; margin-bottom: 18px; overflow: hidden; }
+.q3-final-img { display: block; width: 100%; max-width: 320px; height: auto; margin: 0 auto; }
+.q3-final h3 { margin: 0; font-size: 1.35rem; font-weight: 800; color: var(--primary); }
+.q3-final-msg { margin: 4px 0 16px; font-size: .9rem; color: var(--text-muted); font-weight: 600; }
+.q3-ring { --c: var(--success); width: 124px; height: 124px; border-radius: 50%; margin: 0 auto; display: grid; place-items: center; background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--bg-alt) 0); }
+.q3-ring.q3-mid { --c: var(--warning); } .q3-ring.q3-lo { --c: var(--danger, #dc2626); }
+.q3-ring-in { width: 98px; height: 98px; border-radius: 50%; background: var(--surface, #fff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: inset 0 0 0 1px var(--border, #e5e7eb); }
+.q3-ring-in b { font-size: 1.5rem; font-weight: 800; color: var(--primary); line-height: 1; }
+.q3-ring-in small { font-size: .78rem; font-weight: 700; color: var(--text-muted); }
+.q3-steps-h { font-weight: 800; font-size: .95rem; color: var(--primary); margin: 0 4px 10px; }
+.q3-step { padding: 0 14px; background: var(--card, #fff); box-shadow: 0 2px 8px rgba(30, 58, 138, .06); }
+.q3-step summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 0; list-style: none; }
+.q3-step summary::-webkit-details-marker { display: none; }
+.q3-step-t { flex: 1; min-width: 0; font-weight: 700; font-size: .95rem; }
+.q3-step-s { font-size: .82rem; padding: 3px 10px; border-radius: 999px; background: var(--success-soft); color: var(--success); }
+.q3-step-s.q3-mid { background: var(--warning-soft); color: var(--warning); } .q3-step-s.q3-lo { background: #fee2e2; color: #b91c1c; }
+.q3-step-bar { display: block; flex-basis: 100%; height: 6px; border-radius: 99px; background: var(--bg-alt); overflow: hidden; }
+.q3-step-bar u { display: block; height: 100%; border-radius: 99px; background: var(--success); text-decoration: none; }
+.q3-step-bar u.q3-mid { background: var(--warning); } .q3-step-bar u.q3-lo { background: var(--danger, #dc2626); }
+.q3-step[open] { border-color: var(--primary-light); }
+.q3-step[open] summary { border-bottom: 1px dashed var(--border, #e5e7eb); margin-bottom: 10px; }
+.q3-manual { border: 1.5px dashed var(--border, #cbd5e1); border-radius: 14px; padding: 0 14px; }
+.q3-manual summary { padding: 12px 0; font-weight: 700; color: var(--primary); cursor: pointer; }
+.q3-manual[open] { padding-bottom: 12px; }
