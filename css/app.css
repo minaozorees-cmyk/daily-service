@@ -2487,3 +2487,21 @@
 [data-theme="dark"] .q3-final-badge { background: #3a2c0c; color: #f6d77a; border-color: #5a4313; }
 [data-theme="dark"] .q3-fin { box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .04); }
 @media (prefers-reduced-motion: reduce) { .q3-final-img { animation: none; } .q3-step-chev { transition: none; } }
+
+/* v3.0.19: مراجعة الرفع */
+.q3-rv { border: 1.5px solid var(--border, #e5e7eb); border-radius: 14px; padding: 10px; background: var(--card, #fff); }
+.q3-rv-h { font-weight: 700; margin-bottom: 4px; }
+.q3-rv-meta { display: block; color: var(--text-muted); line-height: 1.7; margin-bottom: 6px; }
+.q3-rv-note { font-size: .76rem; color: var(--text-muted); margin-bottom: 6px; }
+.q3-rv-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-top: 1px solid var(--border, #e5e7eb); }
+.q3-rv-row b { min-width: 24px; text-align: center; color: var(--primary, #4f46e5); }
+.q3-rv-row div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.q3-rv-row strong { font-size: .9rem; }
+.q3-rv-row small { font-size: .76rem; color: var(--text-muted); }
+.q3-rv-warn small { color: var(--gold, #d97706); }
+.q3-rv .btn { margin-top: 8px; }
+
+/* v3.0.20: محرّر الملفات عند الخطأ */
+.q3-fe { border-top: 1px solid var(--border, #e5e7eb); padding: 8px 0; }
+.q3-fe summary { font-size: .86rem; cursor: pointer; line-height: 1.7; }
+.q3-fe-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
