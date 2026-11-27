@@ -1824,6 +1824,7 @@ function adminInitPlanForm() {
   const inp = $('admin-plan-date');
   if (!inp.value) inp.value = todayIso();   // الافتراضي: النهارده
   fillAdminBookSelect($('admin-plan-book'), $('admin-plan-book').value, '— بلا قراءة —');
+  restoreJsonEntries();
   if (adminPlanLoadedFor !== inp.value) adminLoadPlanDay();
   else { fillAdminChapters($('admin-plan-book').value, parseInt($('admin-plan-chapter').value, 10) || null); adminPlanPreview(); }
 }
@@ -1899,6 +1900,19 @@ function normalizeJsonEntries(data, kind) {
   });
 }
 
+/* v3.0.17: عرض قائمة نصوص مرفوعة (منتقي + صندوق التوزيع على الأيام). apply=true يضع نص اليوم المحدد في الحقل */
+function showJsonEntries(kind, entries, apply) {
+  JSON_UPLOADS[kind] = entries;
+  const sel = $(kind === 'meditation' ? 'admin-med-pick' : 'admin-chal-pick');
+  sel.innerHTML = entries.map((e, i) => `<option value="${i}">${escapeHtml(e.label)}</option>`).join('');
+  sel.style.display = entries.length > 1 ? '' : 'none';
+  const today = $('admin-plan-date').value || todayIso();   // v1.3: نختار مدخل اليوم المحدد في اختيار التاريخ
+  const byDate = entries.findIndex(e => e.date === today);
+  sel.value = String(byDate >= 0 ? byDate : 0);
+  if (apply) applyJsonEntry(kind, entries[byDate >= 0 ? byDate : 0]);
+  distBoxInit(kind, entries);
+}
+
 function adminLoadJson(kind, input) {
   if (!requireRole('admin', 'owner')) { input.value = ''; return; }
   const file = input.files && input.files[0];
@@ -1908,15 +1922,9 @@ function adminLoadJson(kind, input) {
     try {
       const entries = normalizeJsonEntries(JSON.parse(reader.result), kind);
       if (!entries.length) throw new Error();
-      JSON_UPLOADS[kind] = entries;
-      const sel = $(kind === 'meditation' ? 'admin-med-pick' : 'admin-chal-pick');
-      sel.innerHTML = entries.map((e, i) => `<option value="${i}">${escapeHtml(e.label)}</option>`).join('');
-      sel.style.display = entries.length > 1 ? '' : 'none';
-      const today = $('admin-plan-date').value || todayIso();   // v1.3: نختار مدخل اليوم المحدد في اختيار التاريخ
-      const byDate = entries.findIndex(e => e.date === today);
-      sel.value = String(byDate >= 0 ? byDate : 0);
-      applyJsonEntry(kind, entries[byDate >= 0 ? byDate : 0]);
-      showToast(`تم تحميل ${entries.length} ${kind === 'meditation' ? 'تأمل' : 'خدمة'} — اضغط «حفظ خطة اليوم» للتطبيق`, 'success');
+      showJsonEntries(kind, entries, true);
+      setStore(JSON_STORE[kind], entries);   // v3.0.17: تبقى القائمة للتوزيع/التكرار بلا رفع جديد
+      showToast(`تم تحميل ${entries.length} ${kind === 'meditation' ? 'تأمل' : 'خدمة'} — اضغط «حفظ خطة اليوم» للتطبيق${entries.length > 1 ? ' أو «وزّع على الأيام»' : ''}`, 'success');
     } catch { showToast('خطأ في صيغة JSON — يرجى المراجعة', 'error'); }
     input.value = '';
   };
@@ -1929,9 +1937,109 @@ function adminPickJson(kind) {
   if (e) applyJsonEntry(kind, e);
 }
 
+function entryText(kind, e) {
+  return kind === 'challenge' ? e.text : (e.verse ? `«${e.verse}»\n\n` : '') + e.text;
+}
+
 function applyJsonEntry(kind, e) {
   if (kind === 'challenge') { $('admin-plan-challenge').value = e.text; return; }
-  $('admin-plan-meditation').value = (e.verse ? `«${e.verse}»\n\n` : '') + e.text;
+  $('admin-plan-meditation').value = entryText(kind, e);
+}
+
+/* --- v3.0.17: توزيع نصوص JSON (أكثر من نص) على أيام الخطة، وتُعاد من الأول إن زادت الأيام عن النصوص --- */
+const JSON_STORE = { meditation: 'ds_v3_json_meditation', challenge: 'ds_v3_json_challenge' };
+const DIST_MAX_DAYS = 366;
+let distBusy = false;
+
+/* دالة نقية: تُرجع [{day, entry}] لكل يوم من startIso بعدد days. مدخل له date يُوضع في تاريخه؛
+   الباقي بالترتيب ويُعاد من الأول (دوّار). لو كل المدخلات مؤرَّخة فالأيام بلا تاريخ مطابق تُترك (entry = null). */
+function planDistribute(entries, startIso, days) {
+  const out = [];
+  if (!entries || !entries.length || !/^\d{4}-\d{2}-\d{2}$/.test(startIso) || !(days >= 1)) return out;
+  const base = Date.parse(startIso + 'T00:00:00Z');
+  if (isNaN(base)) return out;
+  const pool = entries.filter(e => !e.date);
+  const byDate = {};
+  entries.forEach(e => { if (e.date && !(e.date in byDate)) byDate[e.date] = e; });
+  let k = 0;
+  for (let i = 0; i < days; i++) {
+    const iso = new Date(base + i * 86400000).toISOString().slice(0, 10);
+    if (byDate[iso]) { out.push({ day: iso, entry: byDate[iso] }); continue; }
+    out.push({ day: iso, entry: pool.length ? pool[k++ % pool.length] : null });
+  }
+  return out;
+}
+
+function distBoxInit(kind, entries) {
+  const box = $('dist-box-' + kind);
+  if (!box) return;
+  box.style.display = entries.length ? '' : 'none';
+  $('dist-info-' + kind).textContent = `${entries.length} ${kind === 'meditation' ? 'تأمل' : 'خدمة'} جاهز للتوزيع على الأيام بالترتيب. لو الأيام أكثر من النصوص تُعاد من أول القائمة. لا يتغيّر شيء إلا بعد التأكيد.`;
+  if (!$('dist-start-' + kind).value) $('dist-start-' + kind).value = $('admin-plan-date').value || todayIso();
+  if (!$('dist-days-' + kind).value) $('dist-days-' + kind).value = String(Math.min(entries.length, DIST_MAX_DAYS));
+}
+
+/* عند فتح نموذج الخطة: نستعيد آخر قائمة مرفوعة (بلا رفع جديد) ولا نغيّر نص الحقول */
+function restoreJsonEntries() {
+  ['meditation', 'challenge'].forEach(kind => {
+    if (JSON_UPLOADS[kind].length) return;
+    const st = getStore(JSON_STORE[kind], null);
+    if (Array.isArray(st) && st.length && st.every(e => e && typeof e.text === 'string')) showJsonEntries(kind, st, false);
+  });
+}
+
+async function adminDistribute(kind) {
+  if (!requireRole('admin', 'owner') || distBusy) return;
+  const entries = JSON_UPLOADS[kind];
+  if (!entries || !entries.length) return showToast('ارفع ملف JSON أولًا', 'error');
+  const start = $('dist-start-' + kind).value;
+  const days = parseInt($('dist-days-' + kind).value, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return showToast('اختر تاريخ البداية', 'error');
+  if (!(days >= 1) || days > DIST_MAX_DAYS) return showToast(`عدد الأيام من 1 إلى ${DIST_MAX_DAYS}`, 'error');
+  const plan = planDistribute(entries, start, days);
+  const todo = plan.filter(x => x.entry);
+  if (!todo.length) return showToast('لا يوجد نص مناسب لهذه الأيام (النصوص مؤرَّخة بتواريخ أخرى)', 'error');
+  const first = plan[0].day, last = plan[plan.length - 1].day, today = todayIso();
+  const minDay = new Date(Date.parse(today + 'T00:00:00Z') - 60 * 86400000).toISOString().slice(0, 10);
+  const maxDay = new Date(Date.parse(today + 'T00:00:00Z') + 400 * 86400000).toISOString().slice(0, 10);
+  if (first < minDay || last > maxDay) return showToast('المدى خارج المسموح (من 60 يومًا مضت إلى 400 يوم قادمة)', 'error');
+  const lim = kind === 'meditation' ? 6000 : 1500;
+  const tooLong = todo.find(x => entryText(kind, x.entry).length > lim);
+  if (tooLong) return showToast(`أحد النصوص أطول من ${lim} حرفًا (${tooLong.entry.label}) — قصّره ثم أعد الرفع`, 'error');
+  const over = $('dist-over-' + kind).checked;
+  const what = kind === 'meditation' ? 'التأمل' : 'الخدمة العملية';
+  if (!confirm(`توزيع ${what} على ${toAr(todo.length)} يوم (من ${first} إلى ${last}).\n${over ? 'سيُستبدل النص المحفوظ في هذه الأيام.' : 'الأيام التي فيها نص محفوظ تُتخطّى.'}\nباقي الخطة (القراءة والصلاة) لا يتغيّر. متابعة؟`)) return;
+  distBusy = true;
+  const btn = $('dist-btn-' + kind), info = $('dist-info-' + kind);
+  btn.disabled = true;
+  let saved = 0, skipped = 0, warned = 0, failed = null;
+  try {
+    for (let i = 0; i < todo.length; i++) {
+      const { day, entry } = todo[i];
+      info.textContent = `جارٍ الحفظ… ${toAr(i + 1)} من ${toAr(todo.length)}`;
+      const g = await Sync.call('plan_get', { p_day: day });
+      if (!g.ok) { failed = g.error; break; }
+      const p = (g.data && g.data.plan) || null;
+      const cur = p ? (kind === 'meditation' ? p.meditation : p.challenge) : '';
+      if (cur && cur.trim() && !over) { skipped++; continue; }
+      const r = await Sync.call('admin_save_plan', {
+        p_day: day, p_book_id: p ? p.book_id : null, p_section: p ? p.section : null,
+        p_verse_from: p ? p.verse_from : null, p_verse_to: p ? p.verse_to : null,
+        p_meditation: kind === 'meditation' ? entryText(kind, entry) : (p ? p.meditation : ''),
+        p_prayer: p ? p.prayer : '',
+        p_challenge: kind === 'challenge' ? entryText(kind, entry) : (p ? p.challenge : '')
+      });
+      if (!r.ok) { failed = r.error; break; }
+      if (r.data && r.data.warning) warned++;
+      saved++;
+    }
+  } finally {
+    distBusy = false; btn.disabled = false;
+    distBoxInit(kind, entries);
+  }
+  adminPlanLoadedFor = null; adminLoadPlanDay(); adminAfterSave();
+  if (failed) return showToast(`توقّف التوزيع بعد حفظ ${toAr(saved)} يوم: ${failed}`, 'error');
+  showToast(`تم توزيع ${what}: ${toAr(saved)} يوم${skipped ? ' · تُخطّي ' + toAr(skipped) : ''}${warned ? ' · ' + toAr(warned) + ' تنبيه أصحاح' : ''}`, 'success');
 }
 
 /* v1.3: بعد أي حفظ ناجح نسحب فورًا ليظهر على هذا الجهاز كما يراه الآخرون */
