@@ -11,8 +11,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=3.0.17" />
-  <link rel="stylesheet" href="css/chmap.css?v=3.0.17" />
+  <link rel="stylesheet" href="css/app.css?v=3.0.18" />
+  <link rel="stylesheet" href="css/chmap.css?v=3.0.18" />
 </head>
 <body>
 
@@ -544,7 +544,7 @@
         <button type="button" class="settings-toggle" id="settings-toggle" onclick="toggleSettings()" aria-expanded="false" aria-controls="settings-body">
           <div>
             <div class="card-title">⚙️ إعدادات حسابي</div>
-            <div class="settings-hint">الاسم · كلمة المرور · حجم الخط · تسجيل الخروج</div>
+            <div class="settings-hint">الاسم · كلمة المرور · حجم الخط · الإبلاغ عن مشكلة · تسجيل الخروج</div>
           </div>
           <span class="settings-chev" aria-hidden="true">▾</span>
         </button>
@@ -573,6 +573,15 @@
             <button class="btn btn-outline btn-sm" onclick="resetFontSize()">افتراضي</button>
           </div>
         </div>
+        <div class="form-group" id="support-box">
+          <label class="form-label">🛟 الإبلاغ عن مشكلة:</label>
+          <textarea id="support-note" class="form-control" rows="2" maxlength="500" placeholder="اكتب باختصار ماذا حدث (اختياري)"></textarea>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button type="button" class="btn btn-outline btn-sm" id="support-send" onclick="supportSend()">📨 إرسال تقرير للمالك</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="supportCopy()">📋 نسخ التقرير</button>
+          </div>
+          <p class="json-hint" id="support-msg" style="margin-top:6px;">يُرسل سجل الأخطاء الأخيرة ونوع الجهاز فقط — بلا كلمات مرور ولا إجاباتك ولا مشاركاتك.</p>
+        </div>
         <div style="display:flex; gap:10px; margin-top:18px;">
           <button class="btn btn-primary" onclick="saveProfile()">💾 حفظ التعديلات</button>
           <button class="btn btn-danger" onclick="logout()">🚪 تسجيل خروج</button>
@@ -600,6 +609,7 @@
         <button class="sub-btn" data-panel="activity" onclick="switchAdminSub('activity', this)">🧾 سجل الحركات</button>
         <button class="sub-btn owner-only" data-panel="json" onclick="switchAdminSub('json', this)">⬆️ رفع JSON (مالك)</button>
         <button class="sub-btn owner-only" data-panel="backup" onclick="switchAdminSub('backup', this)">💾 نسخة احتياطية (مالك)</button>
+        <button class="sub-btn owner-only" data-panel="support" onclick="switchAdminSub('support', this)">🛟 الدعم (مالك)</button>
         <button class="sub-btn" data-panel="bulk" onclick="switchAdminSub('bulk', this)">🪄 توزيع الخطة</button>
       </div>
 
@@ -867,6 +877,29 @@
         <div style="text-align:center; margin-top:10px;"><button type="button" class="btn btn-outline btn-sm" id="act-more" onclick="activityMore()" style="display:none;">عرض المزيد</button></div>
       </div>
 
+      <div id="admin-sub-support" class="admin-panel card" style="display:none;">
+        <div class="card-header"><div class="card-title">🛟 الدعم (المالك)</div></div>
+        <p class="json-hint" id="sup-stats" style="margin-top:0;"></p>
+        <p class="json-hint">يظهر هنا ما رفعته أجهزة الخدام تلقائيًا (أخطاء الخادم والاتصال والصفحة) وتقاريرهم اليدوية. لا كلمات مرور ولا إجابات ولا مشاركات. يُمسح ما هو أقدم من ١٤ يومًا تلقائيًا. الأوقات بتوقيت القاهرة.</p>
+        <div class="act-filters">
+          <select id="sup-kind" class="form-control" aria-label="النوع">
+            <option value="">الأخطاء والتقارير</option>
+            <option value="report">📨 تقارير الخدام فقط</option>
+            <option value="error">⚠️ الأخطاء فقط</option>
+          </select>
+          <select id="sup-user" class="form-control" aria-label="الخادم"><option value="">كل الخدام</option></select>
+          <input type="search" id="sup-q" class="form-control act-q" maxlength="60" placeholder="🔍 ابحث (اسم الطلب، الرسالة، الخادم)" />
+        </div>
+        <div class="act-btns">
+          <button type="button" class="btn btn-primary btn-sm" onclick="supportApply()">تطبيق</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="supportReset()">مسح الفلتر</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="supportLoad(true)">🔄 تحديث</button>
+          <button type="button" class="btn btn-danger btn-sm" onclick="supportClear()">🗑️ مسح السجل</button>
+        </div>
+        <div id="sup-list" class="act-list" aria-live="polite"></div>
+        <div style="text-align:center; margin-top:10px;"><button type="button" class="btn btn-outline btn-sm" id="sup-more" onclick="supportMore()" style="display:none;">عرض المزيد</button></div>
+      </div>
+
       <div id="admin-sub-backup" class="admin-panel card" style="display:none;">
         <div class="card-header"><div class="card-title">💾 نسخة احتياطية واستعادة (المالك)</div></div>
         <p class="json-hint" style="margin-bottom:10px;">تشمل: الأسفار ومواعيد الفتح وأيام الخطة والمسابقات بأجوبتها. النتائج تُصدَّر للقراءة فقط، والحسابات تظهر في تقرير بلا أرقام تليفونات ولا تُستعاد (حسابات الدخول لا يمكن كتابتها من التطبيق).</p>
@@ -1036,20 +1069,21 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=3.0.17"></script>
-<script src="js/config.js?v=3.0.17"></script>
-<script src="js/supa.js?v=3.0.17"></script>
-<script src="js/auth.js?v=3.0.17"></script>
-<script src="js/sync.js?v=3.0.17"></script>
-<script src="js/books.js?v=3.0.17"></script>
-<script src="js/xlsx-lite.js?v=3.0.17"></script>
-<script src="js/app.js?v=3.0.17"></script>
-<script src="js/admin15.js?v=3.0.17"></script>
-<script src="js/admin16.js?v=3.0.17"></script>
-<script src="js/admin20.js?v=3.0.17"></script>
-<script src="js/admin21.js?v=3.0.17"></script>
-<script src="js/quiz3.js?v=3.0.17"></script>
-<script src="js/update.js?v=3.0.17"></script>
-<script src="js/pwa.js?v=3.0.17"></script>
+<script src="js/version.js?v=3.0.18"></script>
+<script src="js/config.js?v=3.0.18"></script>
+<script src="js/supa.js?v=3.0.18"></script>
+<script src="js/auth.js?v=3.0.18"></script>
+<script src="js/sync.js?v=3.0.18"></script>
+<script src="js/books.js?v=3.0.18"></script>
+<script src="js/xlsx-lite.js?v=3.0.18"></script>
+<script src="js/app.js?v=3.0.18"></script>
+<script src="js/admin15.js?v=3.0.18"></script>
+<script src="js/admin16.js?v=3.0.18"></script>
+<script src="js/admin20.js?v=3.0.18"></script>
+<script src="js/admin21.js?v=3.0.18"></script>
+<script src="js/quiz3.js?v=3.0.18"></script>
+<script src="js/support.js?v=3.0.18"></script>
+<script src="js/update.js?v=3.0.18"></script>
+<script src="js/pwa.js?v=3.0.18"></script>
 </body>
 </html>
