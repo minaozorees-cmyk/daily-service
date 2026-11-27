@@ -11,8 +11,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>الخدمة اليومية — كنيسة العذراء مريم والشهيد مارجرجس ببني خالد</title>
 
-  <link rel="stylesheet" href="css/app.css?v=3.0.16" />
-  <link rel="stylesheet" href="css/chmap.css?v=3.0.16" />
+  <link rel="stylesheet" href="css/app.css?v=3.0.17" />
+  <link rel="stylesheet" href="css/chmap.css?v=3.0.17" />
 </head>
 <body>
 
@@ -628,6 +628,15 @@
           <input type="file" id="admin-med-file" accept=".json,application/json" class="form-control" onchange="adminLoadJson('meditation', this)" />
           <select id="admin-med-pick" class="form-control" style="display:none; margin-top:8px;" onchange="adminPickJson('meditation')"></select>
           <p class="json-hint">يقبل نصًا واحدًا أو قائمة. الحقول: <code dir="ltr">meditation</code> أو <code dir="ltr">reflection</code> أو <code dir="ltr">تأمل</code>، واختياريًا <code dir="ltr">ref</code> و<code dir="ltr">verse</code> و<code dir="ltr">date</code> (YYYY-MM-DD). اكتب <code dir="ltr">{name}</code> داخل النص ليُستبدل باسم الخادم المسجّل، وإن لم تكتبه يُضاف الاسم تلقائيًا أعلى الرسالة.</p>
+          <div id="dist-box-meditation" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);">
+            <div class="json-hint" id="dist-info-meditation"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+              <input type="date" id="dist-start-meditation" class="form-control" aria-label="تاريخ بداية التوزيع" />
+              <input type="number" min="1" max="366" id="dist-days-meditation" class="form-control" placeholder="عدد الأيام" inputmode="numeric" aria-label="عدد الأيام" />
+            </div>
+            <label class="bulk-check"><input type="checkbox" id="dist-over-meditation" checked /> استبدال الأيام التي فيها نص محفوظ</label>
+            <button type="button" class="btn btn-gold btn-sm" id="dist-btn-meditation" onclick="adminDistribute('meditation')">📅 وزّع على الأيام</button>
+          </div>
         </div>
         <div class="form-group"><label class="form-label">صلاة الأجبية:</label><input type="text" id="admin-plan-prayer" class="form-control" /></div>
         <div class="form-group"><label class="form-label">تحدي الخدمة العملي:</label><input type="text" id="admin-plan-challenge" class="form-control" /></div>
@@ -636,6 +645,15 @@
           <input type="file" id="admin-chal-file" accept=".json,application/json" class="form-control" onchange="adminLoadJson('challenge', this)" />
           <select id="admin-chal-pick" class="form-control" style="display:none; margin-top:8px;" onchange="adminPickJson('challenge')"></select>
           <p class="json-hint">يقبل نصًا واحدًا أو قائمة. الحقول: <code dir="ltr">challenge</code> أو <code dir="ltr">service</code> أو <code dir="ltr">الخدمة</code>، واختياريًا <code dir="ltr">date</code>. يدعم <code dir="ltr">{name}</code> أيضًا.</p>
+          <div id="dist-box-challenge" style="display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);">
+            <div class="json-hint" id="dist-info-challenge"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
+              <input type="date" id="dist-start-challenge" class="form-control" aria-label="تاريخ بداية التوزيع" />
+              <input type="number" min="1" max="366" id="dist-days-challenge" class="form-control" placeholder="عدد الأيام" inputmode="numeric" aria-label="عدد الأيام" />
+            </div>
+            <label class="bulk-check"><input type="checkbox" id="dist-over-challenge" checked /> استبدال الأيام التي فيها نص محفوظ</label>
+            <button type="button" class="btn btn-gold btn-sm" id="dist-btn-challenge" onclick="adminDistribute('challenge')">📅 وزّع على الأيام</button>
+          </div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="saveAdminPlan()">💾 حفظ خطة اليوم</button>
@@ -1018,20 +1036,20 @@
   <div id="admin-drawer-body" class="drawer-body"></div>
 </aside>
 
-<script src="js/version.js?v=3.0.16"></script>
-<script src="js/config.js?v=3.0.16"></script>
-<script src="js/supa.js?v=3.0.16"></script>
-<script src="js/auth.js?v=3.0.16"></script>
-<script src="js/sync.js?v=3.0.16"></script>
-<script src="js/books.js?v=3.0.16"></script>
-<script src="js/xlsx-lite.js?v=3.0.16"></script>
-<script src="js/app.js?v=3.0.16"></script>
-<script src="js/admin15.js?v=3.0.16"></script>
-<script src="js/admin16.js?v=3.0.16"></script>
-<script src="js/admin20.js?v=3.0.16"></script>
-<script src="js/admin21.js?v=3.0.16"></script>
-<script src="js/quiz3.js?v=3.0.16"></script>
-<script src="js/update.js?v=3.0.16"></script>
-<script src="js/pwa.js?v=3.0.16"></script>
+<script src="js/version.js?v=3.0.17"></script>
+<script src="js/config.js?v=3.0.17"></script>
+<script src="js/supa.js?v=3.0.17"></script>
+<script src="js/auth.js?v=3.0.17"></script>
+<script src="js/sync.js?v=3.0.17"></script>
+<script src="js/books.js?v=3.0.17"></script>
+<script src="js/xlsx-lite.js?v=3.0.17"></script>
+<script src="js/app.js?v=3.0.17"></script>
+<script src="js/admin15.js?v=3.0.17"></script>
+<script src="js/admin16.js?v=3.0.17"></script>
+<script src="js/admin20.js?v=3.0.17"></script>
+<script src="js/admin21.js?v=3.0.17"></script>
+<script src="js/quiz3.js?v=3.0.17"></script>
+<script src="js/update.js?v=3.0.17"></script>
+<script src="js/pwa.js?v=3.0.17"></script>
 </body>
 </html>
