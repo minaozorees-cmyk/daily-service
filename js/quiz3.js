@@ -90,15 +90,26 @@
       ${manualHtml()}`;
     if (useMap) {
       const root = box.querySelector('.cm');
-      if (root) CM.init(root, {
+      /* الخريطة تقيس أبعادها وقت البدء: لو التبويب مخفي (يُرسم في الخلفية) ننتظر حتى يظهر فعلًا */
+      const start = () => CM.init(root, {
         key: (me() ? me().id : '') + '|' + (Sync.serverCid() || ''),
-        chapters: mapData(c),
+        chapters: mapData(contest() || c),
         verify: mapVerify,
         unlock: () => {},
         reload: async () => mapData(contest() || c),
         open: (step) => { const cd = codeTyped[step] || null; delete codeTyped[step]; window.q3Go(step, cd); },
         resumable: () => false
       });
+      if (root) {
+        if (root.clientWidth > 0 && root.clientHeight > 0) start();
+        else if (typeof ResizeObserver === 'function') {
+          const ro = new ResizeObserver(() => {
+            if (!root.isConnected) { ro.disconnect(); return; }
+            if (root.clientWidth > 0 && root.clientHeight > 0) { ro.disconnect(); start(); }
+          });
+          ro.observe(root);
+        } else start();
+      }
       bindMap();
     }
   }
