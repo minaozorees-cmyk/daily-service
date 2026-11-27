@@ -4,7 +4,7 @@
    - كل ملفات الصدفة (index + css + js + manifest + أيقونات) في كاش واحد بنسخة واحدة، فلا تلتقي صفحة جديدة بملفات قديمة.
    - الـSW الجديد يُحمِّل نسخته كاملة في الخلفية ثم ينتظر. لا skipWaiting تلقائي: التفعيل بطلب من الصفحة (js/update.js)
      بعد التأكد أن لا مسابقة قيد الحل ولا بيانات غير مرفوعة. */
-const VERSION = 'v3.0.20';
+const VERSION = 'v3.0.21';
 const CACHE = 'ds-' + VERSION;
 const BOOKS = 'ds-books-v1';              // v1.4: نصوص القراءة (books/) — كاش مستقل لا يُمسح عند تغيّر VERSION
 const FONTS = 'ds-fonts-v1';              // خطوط محلية (fonts/): كاش مستقل لا يُمسح عند تغيّر VERSION
@@ -15,7 +15,7 @@ const INDEX = SCOPE + 'index.html';
 const CORE = [
   './', 'index.html', 'manifest.json',
   'css/app.css', 'css/chmap.css',
-  'js/version.js', 'js/config.js', 'js/supa.js', 'js/auth.js', 'js/sync.js', 'js/books.js', 'js/xlsx-lite.js', 'js/app.js', 'js/admin15.js', 'js/admin16.js', 'js/admin20.js', 'js/admin21.js', 'js/quiz3.js', 'js/support.js', 'js/chmap.js', 'js/chmap-logic.js', 'js/update.js', 'js/pwa.js'
+  'js/version.js', 'js/config.js', 'js/supa.js', 'js/auth.js', 'js/sync.js', 'js/books.js', 'js/xlsx-lite.js', 'js/app.js', 'js/admin15.js', 'js/admin16.js', 'js/admin20.js', 'js/admin21.js', 'js/quiz3.js', 'js/final21.js', 'js/support.js', 'js/chmap.js', 'js/chmap-logic.js', 'js/update.js', 'js/pwa.js'
 ];
 /* ثانوي: فشله لا يوقف التثبيت */
 const EXTRA = ['img/christmas-manger.svg', 'img/trophy-celebrate.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'];
