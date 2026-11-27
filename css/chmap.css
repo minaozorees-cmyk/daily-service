@@ -214,7 +214,7 @@
   to{opacity:1; transform:translate(-50%,0) scale(1)}
 }
 .cm-popover{
-  position:absolute; z-index:24; width:262px; padding:15px 15px 13px;
+  position:absolute; z-index:24; width:min(262px,calc(100% - 20px)); padding:15px 15px 13px;
   border-radius:22px; direction:rtl;
   background:linear-gradient(180deg,#161C26 0%,#0B0E14 100%);
   border:1px solid hsl(var(--h) 100% 62% / .32);
@@ -442,7 +442,7 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 .cm-hd{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .cm-hd__back,.cm-hd__verses{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;border-radius:12px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:var(--bg-3,rgba(255,255,255,.05));color:var(--ink,#E5E9F0);font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 .cm-hd__t{min-width:0;flex:1;text-align:center}
-.cm-hd__t b{display:block;font-size:14px;font-weight:900;color:var(--ink,#fff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cm-hd__t b{display:block;font-size:15px;font-weight:900;line-height:1.35;color:var(--ink,#fff);overflow:visible;white-space:normal;overflow-wrap:anywhere}
 .cm-hd__t small{display:block;margin-top:1px;font-size:10px;font-weight:700;color:var(--ink-2,#767E8C)}
 .cm .cm-map-card{flex:1 1 0;min-height:280px;height:auto}
 .cm .cm-footer{margin-top:0}
@@ -461,5 +461,9 @@ font-family:'Cairo','Tajawal',system-ui,sans-serif;color:var(--ink,#EDF1F7)}
 @media (prefers-reduced-motion:reduce){.cm *,.cm *::before,.cm *::after{animation:none!important;transition:none!important}}
 
 /* v3.0.5: حاوية الخريطة داخل تبويب المسابقة */
-.q3-map{height:min(78vh,680px);min-height:480px;margin:0 0 10px;border-radius:var(--card-r,30px);overflow:hidden;background:#08090B}
+.q3-map{height:min(calc(100dvh - 80px),860px);min-height:560px;margin:0 -12px 10px;border-radius:var(--card-r,30px);overflow:hidden;background:#08090B}
 .q3-map .cm{height:100%}
+
+/* v3.0.9: حشوة أصغر ليأخذ المسار عرضًا أكبر على الجوال */
+.q3-map .cm{padding:10px 6px 12px}
+.q3-map .cm .cm-map-card{border-radius:24px}
